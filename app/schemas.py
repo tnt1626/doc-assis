@@ -38,13 +38,32 @@ class ThoughtStep(BaseModel):
     thought: str | None = None
     tool_calls: list[ToolCallDetail] = []
 
+class MessageRole(str, Enum):
+    USER      = "user"
+    ASSISTANT = "assistant"
+    TOOL      = "tool"
+
+class MessageType(str, Enum):
+    MESSAGE     = "message"
+    TOOL_CALL   = "tool_call"
+    TOOL_RESULT = "tool_result"
+    THINKING    = "thinking"
+
 class ChatMessage(BaseModel):
-    role: Literal["user", "assistant"]
-    content: str
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    session_id: uuid.UUID
+    role: MessageRole
+    type: MessageType
+    content: dict | str
+    token_count: int
+    created_at: datetime
 
 class AgentQuery(QueryRequest):
+    session_id: uuid.UUID
     document_id: uuid.UUID | None = None
-    chat_history: list[ChatMessage] | None = None
+    limit: int = 20
 
 class AgentResponse(BaseModel):
     answer: str 
@@ -68,3 +87,15 @@ class AgentState():
 class NodeTransition:
     state: AgentState
     next_node: Node
+
+class SessionCreate(BaseModel):
+    title: str
+
+class SessionResponse(SessionCreate):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    message_count: int
+    updated_at: datetime
+    created_at: datetime
+

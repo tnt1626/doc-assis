@@ -1,10 +1,13 @@
 import uuid
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.models import ChatHistory
+from app.services.memory import add_chat_message, get_session_messages
 from app.services.agent.graph.nodes import execute_node, think_node
 from app.schemas import (
     AgentState,
-    ChatMessage, 
+    MessageRole,
+    MessageType, 
     Node, 
     NodeTransition
 )
@@ -23,9 +26,10 @@ class AgentGraph:
     async def run(
         self,
         question: str,
-        chat_history: list[ChatMessage] | None,
+        session_id: uuid.UUID,
         document_id: uuid.UUID | None,
         db: AsyncSession,
+        limit: int = 20
     ):
         """Execute the agent graph state machine asynchronously.
 
@@ -38,9 +42,23 @@ class AgentGraph:
         Returns:
             AgentResponse: Final answer and tracked thought steps.
         """
+        historical_records = await get_session_messages(
+            db=db,
+            session_id=session_id,
+            limit=limit
+        )
+
+        await add_chat_message(
+            db=db,
+            session_id=session_id,
+            role=MessageRole.USER,
+            type=MessageType.MESSAGE,
+            content={"text": question}
+        )
+
         initial_messages = self._build_init_message(
             question=question,
-            chat_history=chat_history,
+            chat_history=historical_records,
             document_id=document_id
         )
 
@@ -58,25 +76,35 @@ class AgentGraph:
                 return
 
             if current_node == Node.THINK:
-                async for item in think_node(state):
+                async for item in think_node(state, db, session_id):
                     if isinstance(item, str):
                         yield item
                     elif isinstance(item, NodeTransition):
                         state, current_node = item.state, item.next_node
 
             elif current_node == Node.EXECUTE:
-                async for item in execute_node(state, db):
+                async for item in execute_node(state, db, session_id):
                     if isinstance(item, str):
                         yield item
                     elif isinstance(item, NodeTransition):
                         state, current_node = item.state, item.next_node
+
+        if state.final_response:
+            await add_chat_message(
+                db=db,
+                session_id=session_id,
+                role=MessageRole.ASSISTANT,
+                type=MessageType.MESSAGE,
+                content={"text": state.final_response},
+                token_count=state.last_turn_tokens
+            )
 
         return
 
     def _build_init_message(
         self,
         question: str,
-        chat_history: list[ChatMessage] | None,
+        chat_history: list[ChatHistory] | None,
         document_id: uuid.UUID | None
     ) -> list[dict]:
         """Construct system prompt and initial message array for the agent graph state.
@@ -110,7 +138,11 @@ class AgentGraph:
     
         if chat_history:
             for chat in chat_history:
-                messages.append(chat.model_dump())
+                if chat.type == MessageType.MESSAGE or chat.type == "message":
+                    text_content = chat.content.get("text", "") if isinstance(chat.content, dict) else str(chat.content)
+                    if text_content:
+                        messages.append({"role": chat.role, "content": text_content})
+
     
         messages.append({"role": "user", "content": question})
 

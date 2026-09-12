@@ -1,17 +1,21 @@
 import json
 from collections.abc import AsyncGenerator
+import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.memory import add_chat_message
 from app.services.client import GROQ_MODEL, groq_client
 from app.services.agent.tools import TOOLS, execute_tool
 from app.schemas import (
-    AgentState, 
+    AgentState,
+    MessageRole,
+    MessageType, 
     Node, 
     NodeTransition, 
     ThoughtStep, 
     ToolCallDetail
 )
 
-async def think_node(state: AgentState) -> AsyncGenerator[str | NodeTransition, None, None]:
+async def think_node(state: AgentState, db: AsyncSession, session_id: uuid.UUID) -> AsyncGenerator[str | NodeTransition, None, None]:
     """Execute LLM reasoning turn to determine whether to call tools or finish answering.
 
     Args:
@@ -64,6 +68,7 @@ async def think_node(state: AgentState) -> AsyncGenerator[str | NodeTransition, 
 
                 if tc.function.arguments:
                     accumulated_tc[index]["arguments"] += tc.function.arguments
+
 
     new_state = AgentState(
         question=state.question,
@@ -135,7 +140,7 @@ async def think_node(state: AgentState) -> AsyncGenerator[str | NodeTransition, 
     return
 
 
-async def execute_node(state: AgentState, db: AsyncSession) -> AsyncGenerator[str | NodeTransition, None, None]:
+async def execute_node(state: AgentState, db: AsyncSession, session_id: uuid.UUID) -> AsyncGenerator[str | NodeTransition, None, None]:
     """Execute requested tool calls from the last thought turn and record thought steps.
 
     Args:
@@ -150,6 +155,14 @@ async def execute_node(state: AgentState, db: AsyncSession) -> AsyncGenerator[st
     new_messages: list[dict] = list(state.messages)
 
     tool_calls = tc_messages.get("tool_calls", []) if isinstance(tc_messages, dict) else (tc_messages.tool_calls or [])
+
+    await add_chat_message(
+        db=db,
+        session_id=session_id,
+        role=MessageRole.ASSISTANT,
+        type=MessageType.TOOL_CALL,
+        content={"tool_info": tool_calls}
+    )
 
     for tc in tool_calls:
         tc_id = tc["id"] if isinstance(tc, dict) else tc.id
@@ -172,6 +185,14 @@ async def execute_node(state: AgentState, db: AsyncSession) -> AsyncGenerator[st
             result=str(result)
         ))
 
+        await add_chat_message(
+            db=db,
+            session_id=session_id,
+            role=MessageRole.TOOL,
+            type=MessageType.TOOL_RESULT,
+            content={"tool_result": str(result)}
+        )
+
         new_messages.append({
             "role": "tool",
             "tool_call_id": tc_id,
@@ -185,6 +206,14 @@ async def execute_node(state: AgentState, db: AsyncSession) -> AsyncGenerator[st
         token=state.last_turn_tokens,
         thought=thought_content,
         tool_calls=tool_calls_detail
+    )
+
+    await add_chat_message(
+        db=db,
+        session_id=session_id,
+        role=MessageRole.ASSISTANT,
+        type=MessageType.THINKING,
+        content={"thought": new_thought_step.model_dump()}
     )
 
     new_state = AgentState(
