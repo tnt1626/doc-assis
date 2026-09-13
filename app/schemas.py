@@ -91,6 +91,9 @@ class NodeTransition:
 class SessionCreate(BaseModel):
     title: str
 
+class SessionUpdate(BaseModel):
+    title: str
+
 class SessionResponse(SessionCreate):
     model_config = ConfigDict(from_attributes=True)
 

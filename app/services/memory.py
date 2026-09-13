@@ -53,18 +53,47 @@ async def add_chat_message(
         )
 
         db.add(chat_history)
-        await db.execute(
-            update(Session)
-            .where(Session.id == session_id)
-            .values(
-                message_count=Session.message_count + 1,
-                updated_at=datetime.now()
+
+        session = await db.scalar(select(Session).where(Session.id == session_id))
+        if session:
+            update_values = {
+                "message_count": Session.message_count + 1,
+                "updated_at": datetime.now()
+            }
+            # Auto-title session if it's the first question and has a default title
+            if role == MessageRole.USER and (session.message_count == 0 or session.title in ("New Conversation", "New Chat", "Cuộc trò chuyện mới")):
+                user_text = content.get("text", "") if isinstance(content, dict) else str(content)
+                if user_text:
+                    clean_title = user_text.strip().replace("\n", " ")
+                    auto_title = clean_title[:35] + ("..." if len(clean_title) > 35 else "")
+                    update_values["title"] = auto_title
+
+            await db.execute(
+                update(Session)
+                .where(Session.id == session_id)
+                .values(**update_values)
             )
-        )
+
         await db.commit()
         await db.refresh(chat_history)
 
         return chat_history
+    except Exception as e:
+        await db.rollback()
+        raise e
+
+
+async def update_session_title(db: AsyncSession, session_id: uuid.UUID, title: str) -> Session | None:
+    """Update the title of a specific chat session."""
+    try:
+        session = await db.scalar(select(Session).where(Session.id == session_id))
+        if session:
+            session.title = title
+            session.updated_at = datetime.now()
+            await db.commit()
+            await db.refresh(session)
+            return session
+        return None
     except Exception as e:
         await db.rollback()
         raise e

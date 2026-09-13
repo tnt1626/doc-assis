@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import APIRouter, Depends, HTTPException
 from app.models import Session
 from app.database import get_db
-from app.schemas import ChatMessage, SessionCreate, SessionResponse
+from app.schemas import ChatMessage, SessionCreate, SessionResponse, SessionUpdate
 from app.services import memory
 
 
@@ -36,6 +36,34 @@ async def create_session(
             status_code=500,
             detail=str(e)
         )
+
+@session_router.patch("/{session_id}/", response_model=SessionResponse)
+async def update_session_title(
+    session_id: uuid.UUID,
+    payload: SessionUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Update the title of an existing chat session.
+
+    Args:
+        session_id (uuid.UUID): Target session UUID.
+        payload (SessionUpdate): Payload containing new title.
+        db (AsyncSession): Database session.
+
+    Returns:
+        SessionResponse: Updated session object.
+    """
+    updated = await memory.update_session_title(
+        db=db,
+        session_id=session_id,
+        title=payload.title
+    )
+    if not updated:
+        raise HTTPException(
+            status_code=404,
+            detail="Session not found."
+        )
+    return updated
 
 @session_router.get("/", response_model=list[SessionResponse])
 async def get_sessions(
