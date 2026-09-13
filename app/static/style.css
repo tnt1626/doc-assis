@@ -250,6 +250,83 @@ h1 {
     font-style: italic;
 }
 
+.new-chat-btn {
+    background: rgba(6, 182, 212, 0.15);
+    border: 1px solid rgba(6, 182, 212, 0.3);
+    color: var(--accent-cyan);
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    transition: var(--transition-smooth);
+}
+
+.new-chat-btn:hover {
+    background: var(--accent-cyan);
+    color: #0b0f19;
+    box-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+}
+
+.session-list {
+    max-height: 180px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.session-item {
+    background: var(--glass-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: var(--transition-smooth);
+    font-size: 0.8rem;
+}
+
+.session-item:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.session-item.active {
+    border-color: var(--accent-cyan);
+    background: rgba(6, 182, 212, 0.1);
+    color: var(--accent-cyan);
+}
+
+.session-title-text {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 190px;
+}
+
+.session-item-del {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    opacity: 0.6;
+    transition: var(--transition-smooth);
+    display: flex;
+    align-items: center;
+}
+
+.session-item-del:hover {
+    opacity: 1;
+    color: var(--accent-rose);
+}
+
 .document-list {
     flex: 1;
     display: flex;

@@ -23,8 +23,23 @@
     </header>
 
     <main class="dashboard">
-        <!-- Sidebar: Document Manager -->
+        <!-- Sidebar: Document & Session Manager -->
         <aside class="sidebar">
+            <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                    <h2 class="section-title" style="margin-bottom: 0;"><i data-lucide="message-square"></i> Chat Sessions</h2>
+                    <button class="new-chat-btn" id="new-chat-btn" title="Start New Conversation">
+                        <i data-lucide="plus" style="width: 14px; height: 14px;"></i> New
+                    </button>
+                </div>
+                <div class="session-list" id="session-list">
+                    <!-- Dynamic Sessions will load here -->
+                    <div style="text-align: center; padding: 1rem; color: var(--text-secondary); font-size: 0.8rem;">
+                        Loading sessions...
+                    </div>
+                </div>
+            </div>
+
             <div>
                 <h2 class="section-title"><i data-lucide="file-up"></i> Upload Document</h2>
                 <div class="upload-container" id="upload-dropzone">
@@ -39,7 +54,7 @@
                 <h2 class="section-title"><i data-lucide="files"></i> Knowledge Base (<span id="doc-count">0</span>)</h2>
                 <div class="document-list" id="doc-list">
                     <!-- Dynamic Document items will load here -->
-                    <div style="text-align: center; padding: 2rem; color: var(--text-secondary); font-size: 0.85rem;">
+                    <div style="text-align: center; padding: 1.5rem; color: var(--text-secondary); font-size: 0.85rem;">
                         No documents uploaded yet.
                     </div>
                 </div>

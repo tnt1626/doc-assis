@@ -1,7 +1,8 @@
 // State Management
 let documentList = [];
 let selectedDocumentId = ""; // Default to Search All
-let chatHistory = []; // Array of {role: 'user'|'assistant', content: string}
+let sessionList = [];
+let currentSessionId = "";
 
 // DOM Elements
 const docListContainer = document.getElementById('doc-list');
@@ -14,6 +15,8 @@ const userInput = document.getElementById('user-input');
 const sendBtn = document.getElementById('send-btn');
 const clearChatBtn = document.getElementById('clear-chat-btn');
 const toastEl = document.getElementById('toast-notification');
+const sessionListEl = document.getElementById('session-list');
+const newChatBtn = document.getElementById('new-chat-btn');
 
 // Initialize Icons
 function initIcons() {
@@ -74,6 +77,168 @@ function checkAndStartPolling() {
     }
 }
 
+// Fetch Sessions List from API
+async function fetchSessions() {
+    try {
+        const response = await fetch('/session/?limit=20');
+        if (!response.ok) throw new Error("Failed to fetch sessions");
+        sessionList = await response.json();
+        renderSessions();
+
+        if (sessionList.length > 0 && !currentSessionId) {
+            await selectSession(sessionList[0].id);
+        } else if (sessionList.length === 0) {
+            await createNewSession("New Conversation", false);
+        }
+    } catch (error) {
+        console.error("Error loading sessions:", error);
+    }
+}
+
+// Render Sessions in Sidebar
+function renderSessions() {
+    if (!sessionListEl) return;
+    sessionListEl.innerHTML = '';
+
+    if (sessionList.length === 0) {
+        sessionListEl.innerHTML = `
+            <div style="text-align: center; padding: 1rem; color: var(--text-secondary); font-size: 0.8rem;">
+                No active sessions.
+            </div>
+        `;
+        return;
+    }
+
+    sessionList.forEach(s => {
+        const isActive = s.id === currentSessionId;
+        const item = document.createElement('div');
+        item.className = `session-item ${isActive ? 'active' : ''}`;
+        item.onclick = () => selectSession(s.id);
+
+        item.innerHTML = `
+            <span class="session-title-text" title="${escapeHtml(s.title || 'Chat')}">${escapeHtml(s.title || 'Chat Session')}</span>
+            <div style="display: flex; gap: 4px; align-items: center;">
+                <button class="session-item-del" title="Rename session" onclick="event.stopPropagation(); renameSession('${s.id}', '${escapeHtml(s.title || '')}')">
+                    <i data-lucide="edit-3" style="width: 12px; height: 12px;"></i>
+                </button>
+                <button class="session-item-del" title="Delete session" onclick="event.stopPropagation(); deleteSession('${s.id}')">
+                    <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+                </button>
+            </div>
+        `;
+        sessionListEl.appendChild(item);
+    });
+    initIcons();
+}
+
+// Rename Chat Session
+async function renameSession(sessionId, currentTitle) {
+    const newTitle = prompt("Enter new title for this conversation:", currentTitle || "New Conversation");
+    if (!newTitle || newTitle.trim() === "" || newTitle.trim() === currentTitle) return;
+
+    try {
+        const response = await fetch(`/session/${sessionId}/`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: newTitle.trim() })
+        });
+        if (!response.ok) throw new Error("Failed to rename session");
+        showToast("Session renamed", "success");
+        await fetchSessions();
+    } catch (error) {
+        console.error(error);
+        showToast("Failed to rename session", "error");
+    }
+}
+
+// Create New Chat Session
+async function createNewSession(title = "New Conversation", loadWelcome = true) {
+    try {
+        const response = await fetch('/session/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: title })
+        });
+        if (!response.ok) throw new Error("Failed to create session");
+        const newSession = await response.json();
+        currentSessionId = newSession.id;
+        showToast("Started new chat session", "info");
+        await fetchSessions();
+        if (loadWelcome) {
+            renderWelcomeMessage();
+        }
+    } catch (error) {
+        console.error(error);
+        showToast("Error creating session", "error");
+    }
+}
+
+// Select a Chat Session
+async function selectSession(sessionId) {
+    currentSessionId = sessionId;
+    renderSessions();
+    await loadSessionMessages(sessionId);
+}
+
+// Load Session Message History from API
+async function loadSessionMessages(sessionId) {
+    try {
+        const response = await fetch(`/session/${sessionId}/messages/?limit=50`);
+        if (!response.ok) throw new Error("Failed to fetch messages");
+        const messages = await response.json();
+        renderSessionHistory(messages);
+    } catch (error) {
+        console.error("Error loading session messages:", error);
+    }
+}
+
+// Render Historical Messages to Chat UI
+function renderSessionHistory(messages) {
+    chatBox.innerHTML = '';
+    if (!messages || messages.length === 0) {
+        renderWelcomeMessage();
+        return;
+    }
+
+    messages.forEach(msg => {
+        const isMsg = msg.type === 'message' || msg.type === 'MESSAGE';
+        if (isMsg) {
+            const contentText = typeof msg.content === 'object' ? (msg.content.text || '') : msg.content;
+            if (contentText) {
+                appendMessage(contentText, msg.role);
+            }
+        }
+    });
+}
+
+function renderWelcomeMessage() {
+    chatBox.innerHTML = `
+        <div class="message assistant">
+            <div class="message-bubble">
+                Hello! I am your intelligent document assistant. Upload a text file on the left side to get started, or select a document to query. You can ask me to search specific documents or search globally across all uploaded knowledge.
+            </div>
+            <div class="message-meta">Agent • Just now</div>
+        </div>
+    `;
+}
+
+// Delete Chat Session
+async function deleteSession(sessionId) {
+    if (!confirm("Delete this chat session?")) return;
+    try {
+        const response = await fetch(`/session/${sessionId}/`, { method: 'DELETE' });
+        if (!response.ok) throw new Error("Failed to delete session");
+        showToast("Session deleted", "info");
+        if (currentSessionId === sessionId) {
+            currentSessionId = "";
+        }
+        await fetchSessions();
+    } catch (error) {
+        console.error(error);
+        showToast("Failed to delete session", "error");
+    }
+}
+
 // Render Documents in Sidebar
 function renderDocuments() {
     docCountEl.textContent = documentList.length;
@@ -81,7 +246,7 @@ function renderDocuments() {
 
     if (documentList.length === 0) {
         docListContainer.innerHTML = `
-            <div style="text-align: center; padding: 2rem; color: var(--text-secondary); font-size: 0.85rem;">
+            <div style="text-align: center; padding: 1.5rem; color: var(--text-secondary); font-size: 0.85rem;">
                 No documents uploaded yet.
             </div>
         `;
@@ -279,9 +444,17 @@ userInput.onkeypress = (e) => {
     if (e.key === 'Enter') submitQuestion();
 };
 
+if (newChatBtn) {
+    newChatBtn.onclick = () => createNewSession("New Conversation", true);
+}
+
 async function submitQuestion() {
     const questionText = userInput.value.trim();
     if (!questionText) return;
+
+    if (!currentSessionId) {
+        await createNewSession("New Conversation", false);
+    }
 
     // 1. Add User Message to Chat UI
     appendMessage(questionText, 'user');
@@ -298,7 +471,8 @@ async function submitQuestion() {
         // Prepare request body
         const requestBody = {
             question: questionText,
-            chat_history: chatHistory.map(h => ({ role: h.role, content: h.content }))
+            session_id: currentSessionId,
+            limit: 20
         };
         if (selectedDocumentId) {
             requestBody.document_id = selectedDocumentId;
@@ -385,10 +559,7 @@ async function submitQuestion() {
 
         // Remove cursor indicator
         removeStreamingCursor(assistantMessageId);
-
-        // 4. Update memory (Save user & assistant history)
-        chatHistory.push({ role: 'user', content: questionText });
-        chatHistory.push({ role: 'assistant', content: accumulatedAnswer });
+        await fetchSessions();
 
     } catch (error) {
         removeLoadingIndicator(loadingMessageId);
@@ -651,7 +822,8 @@ window.toggleAccordion = function(accordionId) {
 
 // HTML Escaping to prevent XSS and formatting issues
 function escapeHtml(unsafe) {
-    return unsafe
+    if (!unsafe) return '';
+    return String(unsafe)
          .replace(/&/g, "&amp;")
          .replace(/</g, "&lt;")
          .replace(/>/g, "&gt;")
@@ -690,19 +862,15 @@ function removeLoadingIndicator(id) {
 // Clear Chat History
 clearChatBtn.onclick = () => {
     if (!confirm("Clear this conversation history?")) return;
-    chatHistory = [];
-    chatBox.innerHTML = `
-        <div class="message assistant">
-            <div class="message-bubble">
-                Conversation history cleared. Feel free to ask a new question!
-            </div>
-            <div class="message-meta">Agent • Just now</div>
-        </div>
-    `;
-    showToast("Conversation cleared", "info");
+    if (currentSessionId) {
+        deleteSession(currentSessionId);
+    } else {
+        renderWelcomeMessage();
+    }
 };
 
 // Initial Setup on load
 window.onload = () => {
     fetchDocuments();
+    fetchSessions();
 };
