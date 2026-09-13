@@ -35,12 +35,13 @@ class AgentGraph:
 
         Args:
             question (str): User query/question.
-            chat_history (list[ChatMessage] | None): Conversation history messages.
+            session_id (uuid.UUID): Target session UUID.
             document_id (uuid.UUID | None): Optional specific document ID context.
-            db (AsyncSession): Database session for tool execution.
+            db (AsyncSession): Database session for tool execution and memory storage.
+            limit (int, optional): Maximum historical messages to retrieve. Defaults to 20.
 
-        Returns:
-            AgentResponse: Final answer and tracked thought steps.
+        Yields:
+            str | NodeTransition: SSE formatted event strings or node transitions.
         """
         historical_records = await get_session_messages(
             db=db,
@@ -111,7 +112,7 @@ class AgentGraph:
 
         Args:
             question (str): User question.
-            chat_history (list[ChatMessage] | None): Preceding chat messages.
+            chat_history (list[ChatHistory] | None): Preceding chat messages retrieved from database.
             document_id (uuid.UUID | None): Target document UUID if scoped.
 
         Returns:

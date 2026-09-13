@@ -4,8 +4,9 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
-from app.routers.documents import doc_router
 from app.routers.chat import agent_router
+from app.routers.documents import doc_router
+from app.routers.sessions import session_router
 from app.services.client import ollama_client, EMBED_MODEL_NAME, GENERATE_MODEL_NAME, OLLAMA_URL
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ app = FastAPI(
 
 app.include_router(doc_router)
 app.include_router(agent_router)
+app.include_router(session_router)
 app.mount("/ui", StaticFiles(directory="app/static", html=True), name="static")
 
 @app.exception_handler(Exception)

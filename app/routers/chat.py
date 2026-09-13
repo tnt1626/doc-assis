@@ -20,6 +20,15 @@ async def chat(
     payload: AgentQuery,
     db: AsyncSession = Depends(get_db),
 ):
+    """Execute an agent chat query streaming SSE response events.
+
+    Args:
+        payload (AgentQuery): Query payload containing question, session_id, document_id, and limit.
+        db (AsyncSession): Database session.
+
+    Returns:
+        StreamingResponse: Event stream containing reasoning steps and final answer.
+    """
     session = await db.scalar(select(Session).where(payload.session_id == Session.id))
     if not session:
         raise HTTPException(

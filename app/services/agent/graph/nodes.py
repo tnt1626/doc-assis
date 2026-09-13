@@ -20,9 +20,11 @@ async def think_node(state: AgentState, db: AsyncSession, session_id: uuid.UUID)
 
     Args:
         state (AgentState): Current graph state containing conversation messages and step history.
+        db (AsyncSession): Database session.
+        session_id (uuid.UUID): Target chat session UUID.
 
-    Returns:
-        tuple[AgentState, Node]: Updated agent state and next graph node (EXECUTE or END).
+    Yields:
+        AsyncGenerator[str | NodeTransition, None]: SSE stream tokens or NodeTransition signal.
     """
     accumulated_tc: dict = {}
     accumulated_content: str = ""
@@ -145,10 +147,11 @@ async def execute_node(state: AgentState, db: AsyncSession, session_id: uuid.UUI
 
     Args:
         state (AgentState): Current graph state containing the tool call message.
-        db (AsyncSession): Database session required for tool executions.
+        db (AsyncSession): Database session required for tool executions and memory logging.
+        session_id (uuid.UUID): Target chat session UUID.
 
-    Returns:
-        tuple[AgentState, Node]: Updated agent state with tool execution results and next node (THINK).
+    Yields:
+        AsyncGenerator[str | NodeTransition, None]: SSE event stream tokens or NodeTransition signal.
     """
     tc_messages = state.messages[-1]
     tool_calls_detail: list[ToolCallDetail] = []
