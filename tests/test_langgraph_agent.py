@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from app.services.agent.graph.core import AgentGraph, create_agent_state_graph
 from app.services.agent.graph.nodes import think_node, _get_val, _update_state
-from app.services.agent.legacy import RawAgentGraph
+from _legacy.agent import RawAgentGraph
 
 def test_langgraph_compilation():
     graph = create_agent_state_graph()

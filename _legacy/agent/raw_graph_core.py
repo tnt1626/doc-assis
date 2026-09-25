@@ -3,7 +3,7 @@ import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import ChatHistory
 from app.services.memory import add_chat_message, get_session_messages
-from app.services.agent.graph.nodes import execute_node, think_node
+from _legacy.agent.raw_graph_nodes import execute_node, think_node
 from app.schemas import (
     AgentState,
     MessageRole,
