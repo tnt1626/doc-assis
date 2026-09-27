@@ -86,6 +86,6 @@ class PerSessionMemory(Base):
     __tablename__ = "per_session_memory"
 
     id          : Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
-    session_id  : Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("session.id"), nullable=False, index=True)
+    session_id  : Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("sessions.id"), nullable=False, index=True)
     content     : Mapped[str]       = mapped_column(Text, nullable=False)
     created_at  : Mapped[datetime]  = mapped_column(DateTime, server_default=func.now())
