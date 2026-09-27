@@ -8,6 +8,10 @@ from app.schemas import MessageRole, MessageType
 
 DEFAULT_TITLES = {"New Conversation", "New Chat", "Cuộc trò chuyện mới"}
 
+async def get_session(db: AsyncSession, session_id: uuid.UUID) -> Session | None:
+    session = await db.scalar(select(Session).where(Session.id == session_id))
+    return session
+
 
 async def create_session(db: AsyncSession, title: str) -> Session:
     """Create a new chat session."""
@@ -24,16 +28,20 @@ async def create_session(db: AsyncSession, title: str) -> Session:
 
 async def get_session_messages(db: AsyncSession, session_id: uuid.UUID, limit: int = 20) -> list[ChatHistory]:
     """Retrieve the recent chat messages for a specific session ordered by creation time."""
-    chat_histories = (
-        await db.scalars(
-            select(ChatHistory)
-            .where(ChatHistory.session_id == session_id)
-            .order_by(ChatHistory.created_at.desc())
-            .limit(limit)
-        )
-    ).all()
+    try:
+        chat_histories = (
+            await db.scalars(
+                select(ChatHistory)
+                .where(ChatHistory.session_id == session_id)
+                .order_by(ChatHistory.created_at.desc())
+                .limit(limit)
+            )
+        ).all()
 
-    return list(chat_histories)
+        return list(chat_histories)
+    except Exception as e:
+        await db.rollback()
+        raise e
 
 
 async def _maybe_auto_title(
@@ -69,7 +77,7 @@ async def add_chat_message(
 
         db.add(chat_history)
 
-        session = await db.scalar(select(Session).where(Session.id == session_id))
+        session = await get_session(db, session_id)
         if session:
             update_values = {
                 "message_count": Session.message_count + 1,
@@ -98,7 +106,7 @@ async def add_chat_message(
 async def update_session_title(db: AsyncSession, session_id: uuid.UUID, title: str) -> Session | None:
     """Update the title of a specific chat session."""
     try:
-        session = await db.scalar(select(Session).where(Session.id == session_id))
+        session = await get_session(db, session_id)
         if session:
             session.title = title
             session.is_auto_titled = True
@@ -114,9 +122,13 @@ async def update_session_title(db: AsyncSession, session_id: uuid.UUID, title: s
 
 async def delete_session(db: AsyncSession, session_id: uuid.UUID) -> bool:
     """Delete a chat session by ID."""
-    session = await db.scalar(select(Session).where(Session.id == session_id))
-    if session:
-        session.is_deleted = True
-        await db.commit()
-        return True
-    return False
+    try:
+        session = await get_session(db, session_id)
+        if session:
+            session.is_deleted = True
+            await db.commit()
+            return True
+        return False
+    except Exception as e:
+        await db.rollback()
+        raise e
