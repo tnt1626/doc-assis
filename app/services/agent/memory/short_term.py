@@ -2,7 +2,6 @@ import uuid
 from datetime import datetime
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models import ChatHistory, Session
 from app.schemas import MessageRole, MessageType
 
@@ -29,7 +28,7 @@ async def get_session_messages(db: AsyncSession, session_id: uuid.UUID, limit: i
         await db.scalars(
             select(ChatHistory)
             .where(ChatHistory.session_id == session_id)
-            .order_by(ChatHistory.created_at.asc())
+            .order_by(ChatHistory.created_at.desc())
             .limit(limit)
         )
     ).all()
@@ -42,6 +41,7 @@ async def _maybe_auto_title(
     user_text: str,
     update_values: dict
 ):
+    """Auto title for a new session"""
     if session.title in DEFAULT_TITLES and user_text:
         clean_title = user_text.strip().replace("\n", " ")
         auto_title = clean_title[:35] + ("..." if len(clean_title) > 35 else "")
@@ -116,7 +116,7 @@ async def delete_session(db: AsyncSession, session_id: uuid.UUID) -> bool:
     """Delete a chat session by ID."""
     session = await db.scalar(select(Session).where(Session.id == session_id))
     if session:
-        await db.delete(session)
+        session.is_deleted = True
         await db.commit()
         return True
     return False

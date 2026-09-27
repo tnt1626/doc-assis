@@ -3,7 +3,7 @@ import uuid
 from dataclasses import replace, is_dataclass
 from typing import Any, AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.services.memory import add_chat_message
+from app.services.agent.memory.short_term import add_chat_message
 from app.services.client import GROQ_MODEL, groq_client
 from app.services.agent.tools import TOOLS, execute_tool
 from app.schemas import (

@@ -4,12 +4,11 @@ import logging
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
 from langgraph.graph import StateGraph, START, END
-
 from app.models import ChatHistory
-from app.services.memory import add_chat_message, get_session_messages
 from app.services.agent.graph.state import AgentGraphState
 from app.services.agent.graph.nodes import execute_node, think_node
 from app.schemas import MessageRole, MessageType, NodeTransition, Node
+from app.services.agent.memory.short_term import add_chat_message, get_session_messages
 
 logger = logging.getLogger(__name__)
 
