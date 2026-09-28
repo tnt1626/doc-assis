@@ -223,3 +223,6 @@ __marimo__/
 chroma_db/
 mock_chroma/
 mock_vault/
+
+# Agent setup including user profile and agent personality
+.agent/

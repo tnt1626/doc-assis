@@ -4,8 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import APIRouter, Depends, HTTPException
 from app.models import Session
 from app.database import get_db
+from app.services.agent.memory import short_term
 from app.schemas import ChatMessage, SessionCreate, SessionResponse, SessionUpdate
-from app.services import memory
 
 
 session_router = APIRouter(prefix="/session")
@@ -25,7 +25,7 @@ async def create_session(
         SessionResponse: Newly created session object.
     """
     try:
-        new_session = await memory.create_session(
+        new_session = await short_term.create_session(
             db=db,
             title=payload.title
         )
@@ -53,7 +53,7 @@ async def update_session_title(
     Returns:
         SessionResponse: Updated session object.
     """
-    updated = await memory.update_session_title(
+    updated = await short_term.update_session_title(
         db=db,
         session_id=session_id,
         title=payload.title
@@ -82,6 +82,7 @@ async def get_sessions(
     sessions = (
         await db.scalars(
             select(Session)
+            .where(Session.is_deleted == False)
             .order_by(Session.updated_at.desc())
             .limit(limit)
         )
@@ -105,7 +106,7 @@ async def get_messages(
     Returns:
         list[ChatMessage]: List of historical chat messages.
     """
-    messages = await memory.get_session_messages(
+    messages = await short_term.get_session_messages(
         db=db,
         session_id=session_id,
         limit=limit
@@ -127,7 +128,7 @@ async def delete_session(
     Returns:
         dict: Deletion status object.
     """
-    deleted = await memory.delete_session(
+    deleted = await short_term.delete_session(
         db=db,
         session_id=session_id
     )
