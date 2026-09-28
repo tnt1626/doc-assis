@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS per_session_memory;

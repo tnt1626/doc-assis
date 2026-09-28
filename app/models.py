@@ -79,13 +79,3 @@ class PerDocMemory(Base):
     content     : Mapped[str]       = mapped_column(Text, nullable=False)
     updated_at  : Mapped[datetime]  = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
     created_at  : Mapped[datetime]  = mapped_column(DateTime, server_default=func.now())
-
-
-class PerSessionMemory(Base):
-    """SQLAlchemy model representing a session's summarization."""
-    __tablename__ = "per_session_memory"
-
-    id          : Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
-    session_id  : Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("sessions.id"), nullable=False, index=True)
-    content     : Mapped[str]       = mapped_column(Text, nullable=False)
-    created_at  : Mapped[datetime]  = mapped_column(DateTime, server_default=func.now())

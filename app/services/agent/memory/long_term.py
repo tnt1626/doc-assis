@@ -5,8 +5,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.agent.memory import prompts
+from app.models import ChatHistory, PerDocMemory
 from app.config import USER_PROFILE_FILE, SOUL_FILE, CONSOLIDATE_EVERY_N
-from app.models import ChatHistory, PerDocMemory, PerSessionMemory, Session
 
 
 
@@ -42,24 +42,6 @@ class Memory:
         return self.user_profile_path.read_text(encoding='utf-8')
 
 
-    async def _get_session_summaries(self, session_id: uuid.UUID) -> str | None:
-        try:
-            rows = (
-                await self.db.scalars(
-                    select(PerSessionMemory)
-                    .where(PerSessionMemory.session_id == session_id)
-                    .order_by(PerSessionMemory.created_at)
-                )
-            ).all()
-
-            summaries = [row.content for row in rows]
-            return "\n".join(summaries) if summaries else None
-            
-        except SQLAlchemyError as e:
-            await self.db.rollback()
-            raise e
-
-
     async def _get_doc_memory_content(self, doc_id: uuid.UUID) -> str | None:
         """Get current memory content of user about the document"""
         try:
@@ -76,7 +58,8 @@ class Memory:
             await self.db.rollback()
             raise e
 
-    async def _get_doc_memory(self, doc_id: uuid.UUID) -> PerSessionMemory | None:
+
+    async def _get_doc_memory(self, doc_id: uuid.UUID) -> PerDocMemory | None:
         """Get current memory of user about the document"""
         try:
             doc_mem = (
@@ -142,30 +125,6 @@ class Memory:
             "content": system_prompt.format(**format_param)
         }]
         return messages
-
-
-    async def _consolidate_session(self, session_id: uuid.UUID) -> PerSessionMemory: 
-        """Consolidate session content while retaining all relevant context."""
-
-        message = await self._build_exchanges(
-            session_id=session_id, 
-            system_prompt=prompts.SESSION_CONSOLIDATE_PROMPT
-        )
-        summarization = await self._llm_summarize(message)
-
-        try:
-            session_memory = PerSessionMemory(
-                session_id=session_id,
-                content=summarization
-            )
-            self.db.add(session_memory)
-            await self.db.commit()
-            await self.db.refresh(session_memory)
-
-            return session_memory
-        except SQLAlchemyError as e:
-            await self.db.rollback()
-            raise e
         
 
     async def _update_doc(self, doc_id: uuid.UUID, session_id: uuid.UUID) -> PerDocMemory: 
@@ -224,7 +183,7 @@ class Memory:
         self.user_profile_path.write_text(summarization)
 
     
-    async def _should_retrieve(self, message: str) -> tuple: 
+    async def _should_retrieve(self, message: str) -> tuple[bool, bool]: 
         """
         Decide when we should retrieve information of 
         a session or a document based on current message.
@@ -247,10 +206,9 @@ class Memory:
             return (
                 bool(data['retrieve_user']),
                 bool(data['retrieve_doc']),
-                # bool(data['retrieve_session']),
             )
         except Exception:
-            return True, True, True
+            return True, True
 
 
     async def _should_consolidate(self, session_id: uuid.UUID) -> bool:
@@ -284,15 +242,13 @@ class Memory:
         doc_id: uuid.UUID | None
     ) -> dict: 
         """Retrieve session's summarization or doc's current state if needed."""
-        retrieve_user, retrieve_doc, retrieve_session = await self._should_retrieve(message)
-        print(retrieve_user, retrieve_doc, retrieve_session)
+        retrieve_user, retrieve_doc = await self._should_retrieve(message)
+
         context = {}
         if retrieve_user:
             context["user_profile"] = self._get_user_profile()
         if retrieve_doc and doc_id:
             context["doc_memory"] = await self._get_doc_memory_content(doc_id)
-        if retrieve_session:
-            context["session_memory"] = await self._get_session_summaries(session_id)
 
         return context
 
@@ -301,7 +257,6 @@ class Memory:
         """Distill memory from document and conversation at the end of session if due"""
         should_consolidate = await self._should_consolidate(session_id)
         if should_consolidate:
-            await self._consolidate_session(session_id)
             for doc_id in doc_ids_used:
                 await self._update_doc(doc_id=doc_id, session_id=session_id)
             await self._update_user_profile(session_id)
