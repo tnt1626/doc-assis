@@ -33,12 +33,13 @@ async def get_session_messages(db: AsyncSession, session_id: uuid.UUID, limit: i
             await db.scalars(
                 select(ChatHistory)
                 .where(ChatHistory.session_id == session_id)
+                .where(ChatHistory.type == "message")
                 .order_by(ChatHistory.created_at.desc())
                 .limit(limit)
             )
         ).all()
 
-        return list(chat_histories)
+        return list(reversed(chat_histories))
     except Exception as e:
         await db.rollback()
         raise e

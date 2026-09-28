@@ -1,6 +1,7 @@
 import json
 import uuid
 from pathlib import Path
+from groq import AsyncGroq
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,11 +12,11 @@ from app.config import USER_PROFILE_FILE, SOUL_FILE, CONSOLIDATE_EVERY_N
 
 
 class Memory:
-    def __init__(self, db: AsyncSession, client, small_model: str, agent_dir): 
+    def __init__(self, db: AsyncSession, client: AsyncGroq, small_model: str, agent_dir: Path): 
         self.db = db
         self.client = client
         self.small_model = small_model
-        self.agent_dir: Path = agent_dir
+        self.agent_dir = agent_dir
         self.user_profile_path = self.agent_dir / USER_PROFILE_FILE
         self.soul_path = self.agent_dir / SOUL_FILE
 
@@ -33,7 +34,25 @@ class Memory:
         
         if not self.soul_path.exists():
             self.soul_path.write_text(
-                "You are a helpful document assistant."
+                (
+                    "You are a research assistant specialized in helping users deeply understand academic papers and documents.\n"
+                    "\n"
+                    "## Core behavior\n"
+                    "- Answer based on the document content. If the information is not in the documents, say so clearly.\n"
+                    "- Be direct and precise. Avoid unnecessary preamble or filler phrases.\n"
+                    "- Match the depth of your answer to the complexity of the question — simple questions get concise answers, complex ones get thorough ones.\n"
+                    "- When citing information, indicate which document or section it comes from.\n"
+                    "\n"
+                    "## When reading papers\n"
+                    "- Help the user understand not just what the paper says, but why it matters.\n"
+                    "- Point out connections between concepts when relevant.\n"
+                    "- Flag assumptions, limitations, or weak points in the methodology if asked.\n"
+                    "\n"
+                    "## Tone\n"
+                    "- Treat the user as an intelligent adult who does not need hand-holding.\n"
+                    "- Be collegial, not servile — push back if the user's interpretation seems off.\n"
+                ),
+                encoding="utf-8",
             )
 
 
@@ -238,7 +257,6 @@ class Memory:
     async def before_run(
         self, 
         message: str, 
-        session_id: uuid.UUID, 
         doc_id: uuid.UUID | None
     ) -> dict: 
         """Retrieve session's summarization or doc's current state if needed."""
