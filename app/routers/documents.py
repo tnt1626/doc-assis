@@ -29,7 +29,7 @@ CONTENT_TYPES = [
 
 logger = logging.getLogger(__name__)
 
-doc_router = APIRouter(prefix="/documents")
+doc_router = APIRouter(prefix="/documents", tags=["documents"])
 
 async def upload(doc_id: uuid.UUID, content: str):
     """Background task to chunk document content, compute embeddings in batches, and store chunks in the database.

@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 MAX_LOOPS = 8
 
-agent_router = APIRouter(prefix='/agent')
+agent_router = APIRouter(prefix='/agent', tags=["agent"])
 
 @agent_router.post('/query')
 async def chat(
@@ -28,8 +28,10 @@ async def chat(
     Returns:
         StreamingResponse: Event stream containing reasoning steps and final answer.
     """
+    logger.info(f"Received agent chat query for session={payload.session_id}, doc={payload.document_id}")
     session = await db.scalar(select(Session).where(payload.session_id == Session.id))
     if not session:
+        logger.warning(f"Chat query rejected: session {payload.session_id} not found.")
         raise HTTPException(
             status_code=404,
             detail="Session does not exist."

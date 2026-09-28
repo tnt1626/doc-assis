@@ -57,18 +57,25 @@ class AgentGraph:
         db: AsyncSession,
         limit: int = 20
     ) -> AsyncGenerator[str, None]:
-        """Execute the agent graph state machine asynchronously.
+        """Execute the main agent graph workflow loop asynchronously.
+
+        Coordinates memory retrieval, prompt construction, state initialization,
+        and state graph execution (THINK <-> EXECUTE) until resolution or max loops.
 
         Args:
-            question (str): User query/question.
-            session_id (uuid.UUID): Target session UUID.
-            document_id (uuid.UUID | None): Optional specific document ID context.
-            db (AsyncSession): Database session for tool execution and memory storage.
-            limit (int, optional): Maximum historical messages to retrieve. Defaults to 20.
+            question (str): The user's input question or query.
+            session_id (uuid.UUID): Target chat session UUID.
+            document_id (uuid.UUID | None): Active document UUID context if applicable.
+            db (AsyncSession): Active asynchronous database session.
+            limit (int, optional): Maximum past conversation records to retrieve. Defaults to 20.
 
         Yields:
-            str: SSE formatted event strings.
+            AsyncGenerator[str, None]: SSE event stream tokens formatted as JSON data strings.
+
+        Raises:
+            Exception: Propagates unhandled exceptions occurring during graph execution.
         """
+        logger.info(f"Starting agent graph execution for session={session_id}, doc={document_id}")
         memory = Memory(
             db=db,
             client=groq_client,
@@ -121,6 +128,7 @@ class AgentGraph:
 
         while current_node != Node.END:
             if state.get("loop_count", 0) >= self.max_loops:
+                logger.warning(f"Session {session_id} reached max loop iterations ({self.max_loops})")
                 yield f"event: error\ndata: {json.dumps({'detail': f'Reached maximum tool loops ({self.max_loops}) without answer.'})}\n\n"
                 yield f"event: done\ndata: {json.dumps({'status': 'max_loops_exceeded'})}\n\n"
                 return
@@ -158,6 +166,7 @@ class AgentGraph:
             doc_ids_used=final_doc_ids
         )
 
+        logger.info(f"Completed agent graph execution for session={session_id}")
         return
 
     def _build_init_message(
@@ -167,16 +176,7 @@ class AgentGraph:
         mem_context: dict,
         document_id: uuid.UUID | None
     ) -> list[dict[str, str]]:
-        """Construct system prompt and initial message array for the agent graph state.
-
-        Args:
-            question (str): User question.
-            chat_history (list[ChatHistory] | None): Preceding chat messages retrieved from database.
-            document_id (uuid.UUID | None): Target document UUID if scoped.
-
-        Returns:
-            list[dict]: List of formatted message dictionaries.
-        """
+        """Construct system prompt and initial message array for agent state."""
         personality = self._get_personality()
         sections = [personality]
         user_profile = mem_context.get("user_profile")

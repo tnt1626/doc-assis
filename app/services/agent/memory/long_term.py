@@ -1,5 +1,6 @@
 import json
 import uuid
+import logging
 from pathlib import Path
 from groq import AsyncGroq
 from sqlalchemy.exc import SQLAlchemyError
@@ -8,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.agent.memory import prompts
 from app.models import ChatHistory, PerDocMemory
 from app.config import USER_PROFILE_FILE, SOUL_FILE, CONSOLIDATE_EVERY_N
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -259,7 +262,16 @@ class Memory:
         message: str, 
         doc_id: uuid.UUID | None
     ) -> dict: 
-        """Retrieve session's summarization or doc's current state if needed."""
+        """Retrieve pre-run long-term memory context (user profile & per-doc memory).
+
+        Args:
+            message (str): Current user question message.
+            doc_id (uuid.UUID | None): Active document UUID if scoped.
+
+        Returns:
+            dict: Context dictionary containing 'user_profile' and/or 'doc_memory' strings.
+        """
+        logger.debug(f"Retrieving memory context before run for message snippet: {message[:50]}...")
         retrieve_user, retrieve_doc = await self._should_retrieve(message)
 
         context = {}
@@ -268,17 +280,25 @@ class Memory:
         if retrieve_doc and doc_id:
             context["doc_memory"] = await self._get_doc_memory_content(doc_id)
 
+        logger.debug(f"Memory context retrieved: user_profile={bool(context.get('user_profile'))}, doc_memory={bool(context.get('doc_memory'))}")
         return context
 
 
     async def after_run(self, session_id: uuid.UUID, doc_ids_used: list[uuid.UUID]):
-        """Distill memory from document and conversation at the end of session if due"""
+        """Consolidate conversation history into long-term user profile and per-doc memory.
+
+        Args:
+            session_id (uuid.UUID): Target chat session UUID.
+            doc_ids_used (list[uuid.UUID]): List of document UUIDs referenced during turn execution.
+        """
         should_consolidate = await self._should_consolidate(session_id)
         if should_consolidate:
+            logger.info(f"[Session {session_id}] Memory consolidation triggered for docs={doc_ids_used}")
             for doc_id in doc_ids_used:
                 await self._update_doc(doc_id=doc_id, session_id=session_id)
             await self._update_user_profile(session_id)
             await self._mark_consolidated(session_id)
+            logger.info(f"[Session {session_id}] Memory consolidation completed.")
     
 
 

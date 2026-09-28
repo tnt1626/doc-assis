@@ -8,7 +8,7 @@ from app.services.agent.memory import short_term
 from app.schemas import ChatMessage, SessionCreate, SessionResponse, SessionUpdate
 
 
-session_router = APIRouter(prefix="/session")
+session_router = APIRouter(prefix="/session", tags=["sessions"])
 
 @session_router.post("/", response_model=SessionResponse)
 async def create_session(
