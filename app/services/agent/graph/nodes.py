@@ -180,6 +180,7 @@ async def execute_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> A
         AsyncGenerator[str | NodeTransition, None]: SSE event stream tokens or NodeTransition signal.
     """
     messages = _get_val(state, "messages", [])
+    current_doc_ids = set(_get_val(state, "doc_ids_used", []))
     tc_messages = messages[-1] if messages else {}
     tool_calls_detail: list[ToolCallDetail] = []
     new_messages: list[dict] = list(messages)
@@ -201,12 +202,20 @@ async def execute_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> A
         args_str = func["arguments"] if isinstance(func, dict) else func.arguments
         
         tool_input = json.loads(args_str) if isinstance(args_str, str) else args_str
+        doc_id_param = tool_input.get("document_id")
 
         result = await execute_tool(
             tool_name=tool_name,
             tool_input=tool_input,
             db=db
         )
+
+        if doc_id_param and not str(result).startswith("Error:"):
+            try:
+                doc_uuid = uuid.UUID(doc_id_param) if isinstance(doc_id_param, str) else doc_id_param
+                current_doc_ids.add(doc_id_param)
+            except Exception:
+                pass
 
         tool_calls_detail.append(ToolCallDetail(
             id=tc_id,
@@ -253,6 +262,7 @@ async def execute_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> A
     new_state = _update_state(
         state,
         messages=new_messages,
+        doc_ids_used=list(current_doc_ids),
         thought_steps=existing_steps + [new_thought_step],
         final_response=None,
         next_node=Node.THINK

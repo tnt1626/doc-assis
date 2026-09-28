@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.database import get_db
 from app.models import Session
 from app.schemas import AgentQuery
-from app.services.agent.loop.run import run_agent_stream
 from app.services.agent.graph.core import AgentGraph
 
 logger = logging.getLogger(__name__)

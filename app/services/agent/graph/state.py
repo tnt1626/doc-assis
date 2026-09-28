@@ -5,13 +5,14 @@ from app.schemas import ThoughtStep
 
 class AgentGraphState(TypedDict, total=False):
     """LangGraph State definition for Document QA Agent."""
-    question: str
-    session_id: uuid.UUID
-    document_id: Optional[uuid.UUID]
-    messages: List[dict]
-    loop_count: int
+    question        : str
+    session_id      : uuid.UUID
+    document_id     : Optional[uuid.UUID]
+    doc_ids_used    : List[uuid.UUID]
+    messages        : List[dict]
+    loop_count      : int
     last_turn_tokens: int
-    thought_steps: List[ThoughtStep]
-    final_response: Optional[str]
-    next_node: str
-    db: AsyncSession
+    thought_steps   : List[ThoughtStep]
+    final_response  : Optional[str]
+    next_node       : str
+    db              : AsyncSession
