@@ -285,20 +285,17 @@ class Memory:
 
 
     async def after_run(self, session_id: uuid.UUID, doc_ids_used: list[uuid.UUID]):
-        """Consolidate conversation history into long-term user profile and per-doc memory.
-
-        Args:
-            session_id (uuid.UUID): Target chat session UUID.
-            doc_ids_used (list[uuid.UUID]): List of document UUIDs referenced during turn execution.
-        """
-        should_consolidate = await self._should_consolidate(session_id)
-        if should_consolidate:
-            logger.info(f"[Session {session_id}] Memory consolidation triggered for docs={doc_ids_used}")
-            for doc_id in doc_ids_used:
-                await self._update_doc(doc_id=doc_id, session_id=session_id)
-            await self._update_user_profile(session_id)
-            await self._mark_consolidated(session_id)
-            logger.info(f"[Session {session_id}] Memory consolidation completed.")
+        try:
+            should_consolidate = await self._should_consolidate(session_id)
+            if should_consolidate:
+                logger.info(f"[Session {session_id}] Memory consolidation triggered")
+                for doc_id in doc_ids_used:
+                    await self._update_doc(doc_id=doc_id, session_id=session_id)
+                await self._update_user_profile(session_id)
+                await self._mark_consolidated(session_id)
+                logger.info(f"[Session {session_id}] Memory consolidation completed")
+        except Exception as e:
+            logger.warning(f"[Session {session_id}] Memory consolidation failed: {e}")
     
 
 
