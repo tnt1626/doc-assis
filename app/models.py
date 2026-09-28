@@ -47,7 +47,6 @@ class Session(Base):
     title           : Mapped[str]       = mapped_column(Text, nullable=False)
     is_auto_titled  : Mapped[bool]      = mapped_column(Boolean, default=False, nullable=False)
     message_count   : Mapped[int]       = mapped_column(Integer, default=0, nullable=False)
-    is_consolidated : Mapped[bool]      = mapped_column(Boolean, default=False, nullable=False)
     is_deleted      : Mapped[bool]      = mapped_column(Boolean, default=False, nullable=False)
     updated_at      : Mapped[datetime]  = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
     created_at      : Mapped[datetime]  = mapped_column(DateTime, server_default=func.now())
@@ -59,15 +58,16 @@ class ChatHistory(Base):
     """SQLAlchemy model representing individual messages within a chat session."""
     __tablename__ = "chat_history"
 
-    id          : Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
-    session_id  : Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True)
-    role        : Mapped[str]       = mapped_column(Text, nullable=False)
-    type        : Mapped[str]       = mapped_column(Text, nullable=False)
-    content     : Mapped[dict]      = mapped_column(JSONB, nullable=False)
-    token_count : Mapped[int]       = mapped_column(Integer, default=0, nullable=False)
-    created_at  : Mapped[datetime]  = mapped_column(DateTime, server_default=func.now())
+    id              : Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    session_id      : Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    role            : Mapped[str]       = mapped_column(Text, nullable=False)
+    type            : Mapped[str]       = mapped_column(Text, nullable=False)
+    content         : Mapped[dict]      = mapped_column(JSONB, nullable=False)
+    token_count     : Mapped[int]       = mapped_column(Integer, default=0, nullable=False)
+    is_consolidated : Mapped[bool]      = mapped_column(Boolean, default=False, nullable=False)
+    created_at      : Mapped[datetime]  = mapped_column(DateTime, server_default=func.now())
 
-    session     : Mapped["Session"] = relationship("Session", back_populates="messages")
+    session         : Mapped["Session"] = relationship("Session", back_populates="messages")
 
 
 class PerDocMemory(Base):
