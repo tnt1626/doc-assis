@@ -233,5 +233,5 @@ class AgentGraph:
 
 
     def _get_personality(self) -> str:
-        """Return content in SOULD.md as agent personality"""
+        """Return content in SOUL.md as agent personality."""
         return (AGENT_DIR / SOUL_FILE).read_text(encoding='utf-8')
