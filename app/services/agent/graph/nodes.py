@@ -4,9 +4,9 @@ import logging
 from dataclasses import replace, is_dataclass
 from typing import Any, AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.services.agent.memory.short_term import add_chat_message
 from app.services.client import GROQ_MODEL, groq_client
 from app.services.agent.tools import TOOLS, execute_tool
+from app.services.agent.memory.short_term import add_chat_message
 from app.schemas import (
     MessageRole,
     MessageType, 
@@ -24,6 +24,7 @@ def _get_val(obj: Any, key: str, default: Any = None) -> Any:
         return obj.get(key, default)
     return getattr(obj, key, default)
 
+
 def _update_state(state: Any, **updates) -> Any:
     """Immutably update state dict or dataclass object."""
     if isinstance(state, dict):
@@ -36,6 +37,7 @@ def _update_state(state: Any, **updates) -> Any:
     new_state = dict(getattr(state, "__dict__", {}))
     new_state.update(updates)
     return new_state
+
 
 async def think_node(
     state: Any, 
@@ -208,7 +210,6 @@ async def execute_node(
         or NodeTransition signal back to THINK node.
     """
     messages = _get_val(state, "messages", [])
-    current_doc_ids = set(_get_val(state, "doc_ids_used", []))
     tc_messages = messages[-1] if messages else {}
     tool_calls_detail: list[ToolCallDetail] = []
     new_messages: list[dict] = list(messages)
@@ -232,7 +233,6 @@ async def execute_node(
         args_str = func["arguments"] if isinstance(func, dict) else func.arguments
         
         tool_input = json.loads(args_str) if isinstance(args_str, str) else args_str
-        doc_id_param = tool_input.get("document_id")
 
         logger.info(f"[Session {session_id}] Executing tool '{tool_name}' with args: {tool_input}")
 
@@ -241,13 +241,6 @@ async def execute_node(
             tool_input=tool_input,
             db=db
         )
-
-        if doc_id_param and not str(result).startswith("Error:"):
-            try:
-                doc_uuid = uuid.UUID(doc_id_param) if isinstance(doc_id_param, str) else doc_id_param
-                current_doc_ids.add(doc_uuid)
-            except Exception:
-                pass
 
         tool_calls_detail.append(ToolCallDetail(
             id=tc_id,
@@ -296,7 +289,6 @@ async def execute_node(
     new_state = _update_state(
         state,
         messages=new_messages,
-        doc_ids_used=list(current_doc_ids),
         thought_steps=existing_steps + [new_thought_step],
         final_response=None,
         next_node=Node.THINK

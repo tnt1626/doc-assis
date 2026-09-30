@@ -1,5 +1,5 @@
 import uuid
-from typing import TypedDict, Optional, List, Any
+from typing import TypedDict, Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas import ThoughtStep
 
@@ -8,7 +8,6 @@ class AgentGraphState(TypedDict, total=False):
     question        : str
     session_id      : uuid.UUID
     document_id     : Optional[uuid.UUID]
-    doc_ids_used    : List[uuid.UUID]
     messages        : List[dict]
     loop_count      : int
     last_turn_tokens: int

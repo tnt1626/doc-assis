@@ -115,7 +115,6 @@ class AgentGraph:
             "question"          : question,
             "session_id"        : session_id,
             "document_id"       : document_id,
-            "doc_ids_used"      : [document_id] if document_id else [],
             "messages"          : initial_messages,
             "loop_count"        : 0,
             "last_turn_tokens"  : 0,
@@ -162,11 +161,7 @@ class AgentGraph:
                 token_count=state.get("last_turn_tokens", 0)
             )
 
-        final_doc_ids = state.get("doc_ids_used", [])
-        await memory.after_run(
-            session_id=session_id,
-            doc_ids_used=final_doc_ids
-        )
+        await memory.after_run(session_id=session_id)
 
         logger.info(f"Completed agent graph execution for session={session_id}")
         return

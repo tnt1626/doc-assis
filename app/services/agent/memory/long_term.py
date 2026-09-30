@@ -316,7 +316,8 @@ class Memory:
         return context
 
 
-    async def after_run(self, session_id: uuid.UUID, doc_ids_used: list[uuid.UUID]):
+    async def after_run(self, session_id: uuid.UUID):
+        doc_ids_used = await self._get_doc_ids_used(session_id)
         try:
             should_consolidate = await self._should_consolidate(session_id)
             if should_consolidate:
