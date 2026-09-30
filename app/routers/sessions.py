@@ -4,11 +4,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import APIRouter, Depends, HTTPException
 from app.models import Session
 from app.database import get_db
+from app.config import AGENT_DIR
+from app.services.agent.memory import short_term
+from app.services.agent.memory.long_term import Memory
+from app.services.client import groq_client, GROQ_SMALL_MODEL
 from app.schemas import ChatMessage, SessionCreate, SessionResponse, SessionUpdate
-from app.services import memory
 
 
-session_router = APIRouter(prefix="/session")
+session_router = APIRouter(prefix="/session", tags=["sessions"])
 
 @session_router.post("/", response_model=SessionResponse)
 async def create_session(
@@ -25,7 +28,7 @@ async def create_session(
         SessionResponse: Newly created session object.
     """
     try:
-        new_session = await memory.create_session(
+        new_session = await short_term.create_session(
             db=db,
             title=payload.title
         )
@@ -53,7 +56,7 @@ async def update_session_title(
     Returns:
         SessionResponse: Updated session object.
     """
-    updated = await memory.update_session_title(
+    updated = await short_term.update_session_title(
         db=db,
         session_id=session_id,
         title=payload.title
@@ -105,7 +108,7 @@ async def get_messages(
     Returns:
         list[ChatMessage]: List of historical chat messages.
     """
-    messages = await memory.get_session_messages(
+    messages = await short_term.get_session_messages(
         db=db,
         session_id=session_id,
         limit=limit
@@ -127,9 +130,11 @@ async def delete_session(
     Returns:
         dict: Deletion status object.
     """
-    deleted = await memory.delete_session(
+    memory = Memory(db=db, client=groq_client, small_model=GROQ_SMALL_MODEL, agent_dir=AGENT_DIR)
+    deleted = await short_term.delete_session(
         db=db,
-        session_id=session_id
+        session_id=session_id,
+        memory=memory
     )
     return {
         "deleted": deleted

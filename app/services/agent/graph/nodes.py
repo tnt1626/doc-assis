@@ -1,11 +1,12 @@
 import json
 import uuid
+import logging
 from dataclasses import replace, is_dataclass
 from typing import Any, AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.services.memory import add_chat_message
 from app.services.client import GROQ_MODEL, groq_client
 from app.services.agent.tools import TOOLS, execute_tool
+from app.services.agent.memory.short_term import add_chat_message
 from app.schemas import (
     MessageRole,
     MessageType, 
@@ -15,11 +16,14 @@ from app.schemas import (
     ToolCallDetail
 )
 
+logger = logging.getLogger(__name__)
+
 def _get_val(obj: Any, key: str, default: Any = None) -> Any:
     """Retrieve value from dict or dataclass object safely."""
     if isinstance(obj, dict):
         return obj.get(key, default)
     return getattr(obj, key, default)
+
 
 def _update_state(state: Any, **updates) -> Any:
     """Immutably update state dict or dataclass object."""
@@ -34,19 +38,33 @@ def _update_state(state: Any, **updates) -> Any:
     new_state.update(updates)
     return new_state
 
-async def think_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> AsyncGenerator[str | NodeTransition, None]:
-    """Execute LLM reasoning turn to determine whether to call tools or finish answering.
+
+async def think_node(
+    state: Any, 
+    db: AsyncSession, 
+    session_id: uuid.UUID, 
+    document_id: uuid.UUID | None
+) -> AsyncGenerator[str | NodeTransition, None]:
+    """Execute the LLM reasoning (think) turn in the agent workflow.
+
+    Streams response chunks from the Groq model and determines whether the agent
+    decides to call external tools or complete the final answer turn.
 
     Args:
-        state (Any): Current graph state containing conversation messages and step history.
-        db (AsyncSession): Database session.
+        state (Any): Current agent graph state containing messages and turn counts.
+        db (AsyncSession): Active database session.
         session_id (uuid.UUID): Target chat session UUID.
 
     Yields:
-        AsyncGenerator[str | NodeTransition, None]: SSE stream tokens or NodeTransition signal.
+        AsyncGenerator[str | NodeTransition, None]: SSE stream formatted event chunks
+        or NodeTransition signal indicating next node (EXECUTE or END).
+
+    Raises:
+        RuntimeError: Raised when LLM generation fails.
     """
     messages = _get_val(state, "messages", [])
     loop_count = _get_val(state, "loop_count", 0)
+    logger.debug(f"[Session {session_id}] Entering think_node, turn={loop_count + 1}")
 
     accumulated_tc: dict = {}
     accumulated_content: str = ""
@@ -61,6 +79,7 @@ async def think_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> Asy
             stream=True
         )
     except Exception as e:
+        logger.error(f"[Session {session_id}] LLM generation failed: {e}")
         raise RuntimeError(f"Generate failed: {e}")
 
     async for chunk in response:
@@ -97,6 +116,7 @@ async def think_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> Asy
     )
 
     if not calling_tools:
+        logger.info(f"[Session {session_id}] think_node finished reasoning without calling tools.")
         if not accumulated_content.strip():
             accumulated_content = (
                 "I apologize, but I did not receive a suitable response from the model. "
@@ -153,6 +173,7 @@ async def think_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> Asy
             }
         })
 
+    logger.info(f"[Session {session_id}] think_node selected {len(final_tool_calls)} tool call(s).")
     message = {
         "role": role,
         "content": accumulated_content,
@@ -168,16 +189,25 @@ async def think_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> Asy
     yield NodeTransition(state=next_state, next_node=Node.EXECUTE)
     return
 
-async def execute_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> AsyncGenerator[str | NodeTransition, None]:
-    """Execute requested tool calls from the last thought turn and record thought steps.
+async def execute_node(
+    state: Any, 
+    db: AsyncSession, 
+    session_id: uuid.UUID, 
+    document_id: uuid.UUID | None
+) -> AsyncGenerator[str | NodeTransition, None]:
+    """Execute requested tool calls from the last reasoning turn.
+
+    Dispatches tool calls, records executed thought steps, updates active document context,
+    and transitions back to the THINK node for follow-up reasoning.
 
     Args:
-        state (Any): Current graph state containing the tool call message.
-        db (AsyncSession): Database session required for tool executions and memory logging.
+        state (Any): Current agent graph state containing tool call requests.
+        db (AsyncSession): Active database session for tool operations.
         session_id (uuid.UUID): Target chat session UUID.
 
     Yields:
-        AsyncGenerator[str | NodeTransition, None]: SSE event stream tokens or NodeTransition signal.
+        AsyncGenerator[str | NodeTransition, None]: SSE stream formatted event chunks
+        or NodeTransition signal back to THINK node.
     """
     messages = _get_val(state, "messages", [])
     tc_messages = messages[-1] if messages else {}
@@ -185,10 +215,12 @@ async def execute_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> A
     new_messages: list[dict] = list(messages)
 
     tool_calls = tc_messages.get("tool_calls", []) if isinstance(tc_messages, dict) else (getattr(tc_messages, "tool_calls", []) or [])
+    logger.debug(f"[Session {session_id}] Entering execute_node, executing {len(tool_calls)} tool call(s).")
 
     await add_chat_message(
         db=db,
         session_id=session_id,
+        document_id=document_id,
         role=MessageRole.ASSISTANT,
         type=MessageType.TOOL_CALL,
         content={"tool_info": tool_calls}
@@ -201,6 +233,8 @@ async def execute_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> A
         args_str = func["arguments"] if isinstance(func, dict) else func.arguments
         
         tool_input = json.loads(args_str) if isinstance(args_str, str) else args_str
+
+        logger.info(f"[Session {session_id}] Executing tool '{tool_name}' with args: {tool_input}")
 
         result = await execute_tool(
             tool_name=tool_name,
@@ -218,6 +252,7 @@ async def execute_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> A
         await add_chat_message(
             db=db,
             session_id=session_id,
+            document_id=document_id,
             role=MessageRole.TOOL,
             type=MessageType.TOOL_RESULT,
             content={"tool_result": str(result)}
@@ -245,6 +280,7 @@ async def execute_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> A
     await add_chat_message(
         db=db,
         session_id=session_id,
+        document_id=document_id,
         role=MessageRole.ASSISTANT,
         type=MessageType.THINKING,
         content={"thought": new_thought_step.model_dump()}
