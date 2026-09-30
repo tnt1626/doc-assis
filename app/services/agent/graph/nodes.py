@@ -37,7 +37,12 @@ def _update_state(state: Any, **updates) -> Any:
     new_state.update(updates)
     return new_state
 
-async def think_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> AsyncGenerator[str | NodeTransition, None]:
+async def think_node(
+    state: Any, 
+    db: AsyncSession, 
+    session_id: uuid.UUID, 
+    document_id: uuid.UUID | None
+) -> AsyncGenerator[str | NodeTransition, None]:
     """Execute the LLM reasoning (think) turn in the agent workflow.
 
     Streams response chunks from the Groq model and determines whether the agent
@@ -182,7 +187,12 @@ async def think_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> Asy
     yield NodeTransition(state=next_state, next_node=Node.EXECUTE)
     return
 
-async def execute_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> AsyncGenerator[str | NodeTransition, None]:
+async def execute_node(
+    state: Any, 
+    db: AsyncSession, 
+    session_id: uuid.UUID, 
+    document_id: uuid.UUID | None
+) -> AsyncGenerator[str | NodeTransition, None]:
     """Execute requested tool calls from the last reasoning turn.
 
     Dispatches tool calls, records executed thought steps, updates active document context,
@@ -209,6 +219,7 @@ async def execute_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> A
     await add_chat_message(
         db=db,
         session_id=session_id,
+        document_id=document_id,
         role=MessageRole.ASSISTANT,
         type=MessageType.TOOL_CALL,
         content={"tool_info": tool_calls}
@@ -234,7 +245,7 @@ async def execute_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> A
         if doc_id_param and not str(result).startswith("Error:"):
             try:
                 doc_uuid = uuid.UUID(doc_id_param) if isinstance(doc_id_param, str) else doc_id_param
-                current_doc_ids.add(doc_id_param)
+                current_doc_ids.add(doc_uuid)
             except Exception:
                 pass
 
@@ -248,6 +259,7 @@ async def execute_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> A
         await add_chat_message(
             db=db,
             session_id=session_id,
+            document_id=document_id,
             role=MessageRole.TOOL,
             type=MessageType.TOOL_RESULT,
             content={"tool_result": str(result)}
@@ -275,6 +287,7 @@ async def execute_node(state: Any, db: AsyncSession, session_id: uuid.UUID) -> A
     await add_chat_message(
         db=db,
         session_id=session_id,
+        document_id=document_id,
         role=MessageRole.ASSISTANT,
         type=MessageType.THINKING,
         content={"thought": new_thought_step.model_dump()}

@@ -97,6 +97,7 @@ class AgentGraph:
         await add_chat_message(
             db=db,
             session_id=session_id,
+            document_id=document_id,
             role=MessageRole.USER,
             type=MessageType.MESSAGE,
             content={"text": question}
@@ -134,7 +135,7 @@ class AgentGraph:
                 return
 
             if current_node == Node.THINK:
-                async for item in think_node(state, db, session_id):
+                async for item in think_node(state, db, session_id, document_id):
                     if isinstance(item, str):
                         yield item
                     elif isinstance(item, NodeTransition):
@@ -142,7 +143,7 @@ class AgentGraph:
                         current_node = item.next_node
 
             elif current_node == Node.EXECUTE:
-                async for item in execute_node(state, db, session_id):
+                async for item in execute_node(state, db, session_id, document_id):
                     if isinstance(item, str):
                         yield item
                     elif isinstance(item, NodeTransition):
@@ -154,6 +155,7 @@ class AgentGraph:
             await add_chat_message(
                 db=db,
                 session_id=session_id,
+                document_id=document_id,
                 role=MessageRole.ASSISTANT,
                 type=MessageType.MESSAGE,
                 content={"text": final_response},

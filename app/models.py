@@ -47,7 +47,6 @@ class Session(Base):
     title           : Mapped[str]       = mapped_column(Text, nullable=False)
     is_auto_titled  : Mapped[bool]      = mapped_column(Boolean, default=False, nullable=False)
     message_count   : Mapped[int]       = mapped_column(Integer, default=0, nullable=False)
-    is_deleted      : Mapped[bool]      = mapped_column(Boolean, default=False, nullable=False)
     updated_at      : Mapped[datetime]  = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
     created_at      : Mapped[datetime]  = mapped_column(DateTime, server_default=func.now())
 
@@ -60,6 +59,7 @@ class ChatHistory(Base):
 
     id              : Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
     session_id      : Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    document_id     : Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("documents.id"), nullable=True)
     role            : Mapped[str]       = mapped_column(Text, nullable=False)
     type            : Mapped[str]       = mapped_column(Text, nullable=False)
     content         : Mapped[dict]      = mapped_column(JSONB, nullable=False)

@@ -4,7 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import APIRouter, Depends, HTTPException
 from app.models import Session
 from app.database import get_db
+from app.config import AGENT_DIR
 from app.services.agent.memory import short_term
+from app.services.agent.memory.long_term import Memory
+from app.services.client import groq_client, GROQ_SMALL_MODEL
 from app.schemas import ChatMessage, SessionCreate, SessionResponse, SessionUpdate
 
 
@@ -82,7 +85,6 @@ async def get_sessions(
     sessions = (
         await db.scalars(
             select(Session)
-            .where(Session.is_deleted == False)
             .order_by(Session.updated_at.desc())
             .limit(limit)
         )
@@ -128,9 +130,11 @@ async def delete_session(
     Returns:
         dict: Deletion status object.
     """
+    memory = Memory(db=db, client=groq_client, small_model=GROQ_SMALL_MODEL, agent_dir=AGENT_DIR)
     deleted = await short_term.delete_session(
         db=db,
-        session_id=session_id
+        session_id=session_id,
+        memory=memory
     )
     return {
         "deleted": deleted

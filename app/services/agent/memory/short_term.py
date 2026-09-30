@@ -5,6 +5,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import ChatHistory, Session
 from app.schemas import MessageRole, MessageType
+from app.services.agent.memory.long_term import Memory
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,7 @@ async def _maybe_auto_title(
 async def add_chat_message(
     db: AsyncSession,
     session_id: uuid.UUID,
+    document_id: uuid.UUID | None,
     role: MessageRole,
     type: MessageType,
     content: dict,
@@ -106,6 +108,7 @@ async def add_chat_message(
         logger.debug(f"[Session {session_id}] Adding chat record: role={role}, type={type}")
         chat_history = ChatHistory(
             session_id=session_id,
+            document_id=document_id,
             role=role,
             type=type,
             content=content,
@@ -158,12 +161,14 @@ async def update_session_title(db: AsyncSession, session_id: uuid.UUID, title: s
         raise e
 
 
-async def delete_session(db: AsyncSession, session_id: uuid.UUID) -> bool:
-    """Delete a chat session by ID."""
+async def delete_session(db: AsyncSession, session_id: uuid.UUID, memory: Memory) -> bool:
+    """Delete a chat session by ID with consolidation."""
+    await memory.force_consolidation(session_id)
+
     try:
         session = await get_session(db, session_id)
         if session:
-            session.is_deleted = True
+            await db.delete(session)
             await db.commit()
             return True
         return False

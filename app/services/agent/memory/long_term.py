@@ -256,6 +256,38 @@ class Memory:
         )
         await self.db.commit()
 
+
+    async def _get_doc_ids_used(self, session_id: uuid.UUID) -> set[uuid.UUID]:
+        """Get unique document index used in session"""
+        try:
+            doc_ids = (
+                await self.db.scalars(
+                    select(ChatHistory.document_id)
+                    .where(ChatHistory.session_id == session_id)
+                    .where(ChatHistory.document_id.isnot(None))
+                )
+            ).all()
+
+            doc_ids = set(doc_ids)
+
+            return doc_ids
+
+        except SQLAlchemyError as e:
+            await self.db.rollback()
+            raise e
+
+
+    async def force_consolidation(self, session_id: uuid.UUID):
+        """Consolidate a session before deleting"""
+        doc_ids_used = await self._get_doc_ids_used(session_id)
+
+        logger.info(f"[Session {session_id}] Memory force consolidation triggered")
+        for doc_id in doc_ids_used:
+            await self._update_doc(doc_id=doc_id, session_id=session_id)
+        await self._update_user_profile(session_id)
+        await self._mark_consolidated(session_id)
+        logger.info(f"[Session {session_id}] Memory force consolidation completed")
+
     
     async def before_run(
         self, 
