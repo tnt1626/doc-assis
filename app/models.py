@@ -59,7 +59,7 @@ class ChatHistory(Base):
 
     id              : Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
     session_id      : Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True)
-    document_id     : Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("documents.id"), nullable=True)
+    document_id     : Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("documents.id", ondelete="SET NULL"), nullable=True)
     role            : Mapped[str]       = mapped_column(Text, nullable=False)
     type            : Mapped[str]       = mapped_column(Text, nullable=False)
     content         : Mapped[dict]      = mapped_column(JSONB, nullable=False)
@@ -75,7 +75,7 @@ class PerDocMemory(Base):
     __tablename__ = "per_doc_memory"
 
     id          : Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
-    document_id : Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("documents.id"), nullable=False, index=True)
+    document_id : Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("documents.id", ondelete="CASECADE"), nullable=False, index=True)
     content     : Mapped[str]       = mapped_column(Text, nullable=False)
     updated_at  : Mapped[datetime]  = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
     created_at  : Mapped[datetime]  = mapped_column(DateTime, server_default=func.now())
