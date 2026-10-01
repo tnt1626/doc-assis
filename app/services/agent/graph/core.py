@@ -3,7 +3,6 @@ import json
 import logging
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
-from langgraph.graph import StateGraph, START, END
 from app.models import ChatHistory
 from app.config import AGENT_DIR, SOUL_FILE
 from app.services.client import GROQ_SMALL_MODEL, groq_client
@@ -15,39 +14,17 @@ from app.services.agent.memory.short_term import add_chat_message, get_session_m
 
 logger = logging.getLogger(__name__)
 
-def route_next(state: AgentGraphState) -> str:
-    """Determine the next state transition in LangGraph."""
-    if state.get("next_node") == "execute":
-        return "execute"
-    return END
-
-def create_agent_state_graph():
-    """Build and compile the LangGraph StateGraph workflow."""
-    workflow = StateGraph(AgentGraphState)
-    workflow.add_node("think", think_node)
-    workflow.add_node("execute", execute_node)
-    
-    workflow.add_edge(START, "think")
-    workflow.add_conditional_edges(
-        "think",
-        route_next,
-        {"execute": "execute", END: END}
-    )
-    workflow.add_edge("execute", "think")
-    
-    return workflow.compile()
 
 class AgentGraph:
-    """LangGraph-powered Agent runner controlling state transitions between THINK and EXECUTE nodes."""
+    """Agent runner controlling state transitions between THINK and EXECUTE nodes via an Async Generator loop."""
 
     def __init__(self, max_loops: int = 8):
-        """Initialize the LangGraph Agent executor.
+        """Initialize the Agent executor.
 
         Args:
             max_loops (int, optional): Maximum loop iterations permitted. Defaults to 8.
         """
         self.max_loops = max_loops
-        self.graph = create_agent_state_graph()
 
     async def run(
         self,
