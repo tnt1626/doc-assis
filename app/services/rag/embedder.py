@@ -1,10 +1,9 @@
 import logging
 import asyncio
-from app.config import _RETRY_ATTEMPTS, _RETRY_DELAY
-from app.services.client import (
-    EMBED_MODEL_NAME, 
-    ollama_client as client
-)
+from app.services.llm.clients import ollama_client as client
+from app.config import _RETRY_ATTEMPTS, _RETRY_DELAY, EMBED_MODEL_NAME
+
+
 
 logger = logging.getLogger(__name__)
 

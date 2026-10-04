@@ -8,23 +8,24 @@ from fastapi.staticfiles import StaticFiles
 from fastapi import Depends, FastAPI, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from app import config
+from app.mcp import mcp_server
 from app.database import get_db
 from app.routers.chat import agent_router
 from app.routers.documents import doc_router
 from app.routers.sessions import session_router
-from app.services.client import ollama_client, EMBED_MODEL_NAME, GENERATE_MODEL_NAME, OLLAMA_URL
+from app.services.llm.clients import ollama_client
 
 logger = logging.getLogger(__name__)
 
 async def pull_ollama_models():
     try:
-        logger.info(f"Connecting to Ollama at: {OLLAMA_URL}")
-        logger.info(f"Starting to pull Ollama models: {EMBED_MODEL_NAME}, {GENERATE_MODEL_NAME}")
-        await ollama_client.pull(EMBED_MODEL_NAME)
-        await ollama_client.pull(GENERATE_MODEL_NAME)
+        logger.info(f"Connecting to Ollama at: {config.OLLAMA_URL}")
+        logger.info(f"Starting to pull Ollama models: {config.EMBED_MODEL_NAME}, {config.GENERATE_MODEL_NAME}")
+        await ollama_client.pull(config.EMBED_MODEL_NAME)
+        await ollama_client.pull(config.GENERATE_MODEL_NAME)
         logger.info("Successfully pulled Ollama models.")
     except Exception as e:
-        logger.error(f"Failed to pull Ollama models (URL: {OLLAMA_URL}): {e}. Application will continue starting, but Ollama might be unavailable.")
+        logger.error(f"Failed to pull Ollama models (URL: {config.OLLAMA_URL}): {e}. Application will continue starting, but Ollama might be unavailable.")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -38,7 +39,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-from app.mcp import mcp_server
 
 app.include_router(doc_router)
 app.include_router(agent_router)
@@ -71,7 +71,7 @@ async def health_check(
 
     try:
         async with httpx.AsyncClient(timeout=config.OLLAMA_TIMEOUT) as client:
-            response = await client.get(OLLAMA_URL)
+            response = await client.get(config.OLLAMA_URL)
 
         if response.status_code == 200:
             health_status["components"]["ollama"] = "healthy"
