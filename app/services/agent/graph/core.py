@@ -19,11 +19,7 @@ class AgentGraph:
     """Agent runner controlling state transitions between THINK and EXECUTE nodes via an Async Generator loop."""
 
     def __init__(self, max_loops: int = 8):
-        """Initialize the Agent executor.
-
-        Args:
-            max_loops (int, optional): Maximum loop iterations permitted. Defaults to 8.
-        """
+        """Initialize the Agent graph executor with maximum loop limits."""
         self.max_loops = max_loops
 
     async def run(
@@ -128,6 +124,9 @@ class AgentGraph:
         final_response = state.get("final_response")
         if final_response:
             usage = state.get("last_turn_usage", None)
+            if usage is None:
+                logger.warning(f"Session {session_id} final turn usage statistics were None.")
+
             await add_chat_message(
                 db=db,
                 session_id=session_id,

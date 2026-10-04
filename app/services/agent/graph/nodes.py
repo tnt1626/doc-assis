@@ -76,6 +76,9 @@ async def think_node(
         elif isinstance(ev, Usage):
             usage = ev
 
+    if usage is None:
+        logger.warning(f"[Session {session_id}] Token usage statistics were None for turn {loop_count + 1}")
+
     role: str = "assistant"
 
     new_state = _update_state(
