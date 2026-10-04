@@ -226,3 +226,4 @@ mock_vault/
 
 # Agent setup including user profile and agent personality
 .agent/
+IDEAS.md

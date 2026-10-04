@@ -1,20 +1,15 @@
-import os
-from dotenv import load_dotenv
-from groq import AsyncGroq
-from ollama import AsyncClient
+from app.services.llm import groq
+from app.services.llm.clients import groq_client
+from app.services.agent.tools import TOOLS
+from app.config import GROQ_MODEL, GROQ_SMALL_MODEL
 
-load_dotenv()
 
-EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME", "nomic-embed-text")
-GENERATE_MODEL_NAME = os.getenv("GENERATE_MODEL_NAME", "qwen2.5:1.5b")
-
-OLLAMA_URL = os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434"
-GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b")
-GROQ_SMALL_MODEL = os.getenv("GROQ_SMALL_MODEL", "qwen/qwen3.8-27b")
-
-ollama_client = AsyncClient(host=OLLAMA_URL)
-groq_api_key = os.getenv("GROQ_API_KEY") or "gsk_placeholder"
-groq_client = AsyncGroq(api_key=groq_api_key)
+groq_llm = groq.GroqClient(
+    client=groq_client,
+    model=GROQ_MODEL,
+    small_model=GROQ_SMALL_MODEL,
+    tools=TOOLS
+)
 
 class OllamaConnectionError(Exception):
     """Raised when connection to the Ollama service fails."""

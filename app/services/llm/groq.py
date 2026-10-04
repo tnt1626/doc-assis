@@ -1,0 +1,95 @@
+import logging
+from typing import AsyncIterator
+from app.services.llm import llm_types
+
+logger = logging.getLogger(__name__)
+
+class GroqClient:
+    def __init__(self, client, model, small_model, tools: list[dict]):
+        self.client         = client
+        self.model          = model
+        self.small_model    = small_model
+        self.tools          = tools
+
+    async def stream(
+        self, 
+        messages: list[dict[str, str]],
+        purpose: llm_types.LLMPurpose
+    ) -> AsyncIterator[llm_types.TextDelta | llm_types.ToolCall | llm_types.Usage]:
+        accumulated_tc: dict = {}
+        usage = None
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                tools=self.tools,
+                stream=True
+            )
+
+        except Exception as e:
+            raise RuntimeError(f"Streaming failed: {e}")
+
+        async for chunk in response:
+            if getattr(chunk, "usage", None) is not None:
+                prompt_tokens = chunk.usage.prompt_tokens
+                completion_tokens = chunk.usage.completion_tokens
+                usage = llm_types.Usage(
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens
+                )
+
+                logger.info(f"[TOKENS] purpose={purpose.value} prompt={prompt_tokens} completion={completion_tokens}")
+
+            if not chunk.choices:
+                continue
+
+            delta = chunk.choices[0].delta
+
+            if getattr(delta, "content", None) is not None:
+                piece_content = delta.content
+
+                yield llm_types.TextDelta(text=piece_content)
+
+            if getattr(delta, "tool_calls", None) is not None:
+                for tc in delta.tool_calls:
+                    index = tc.index
+    
+                    if index not in accumulated_tc:
+                        accumulated_tc[index] = {
+                            "id": tc.id,
+                            "name": tc.function.name,
+                            "arguments": ""
+                        }
+    
+                    if tc.function.arguments:
+                        accumulated_tc[index]["arguments"] += tc.function.arguments
+
+        for tc in accumulated_tc.values():
+            yield llm_types.ToolCall(
+                id=tc["id"],
+                name=tc["name"],
+                arguments=tc["arguments"]
+            )
+
+        yield usage
+
+        return
+
+
+    async def completion(
+        self, 
+        messages: list[dict[str, str]], 
+        purpose: llm_types.LLMPurpose,
+        max_tokens: int = 600
+    ) -> str:
+
+        response = await self.client.chat.completions.create(
+            model=self.small_model,
+            messages=messages,
+            max_tokens=max_tokens
+        )
+        logger.info(f"[TOKENS] purpose={purpose.value} prompt={response.usage.prompt_tokens} completion={response.usage.completion_tokens}")
+
+        return response.choices[0].message.content
+    
