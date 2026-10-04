@@ -4,8 +4,8 @@ import logging
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import ChatHistory
+from app.services.client import groq_llm
 from app.config import AGENT_DIR, SOUL_FILE
-from app.services.client import GROQ_SMALL_MODEL, groq_client
 from app.services.agent.memory.long_term import Memory
 from app.services.agent.graph.state import AgentGraphState
 from app.services.agent.graph.nodes import execute_node, think_node
@@ -55,8 +55,7 @@ class AgentGraph:
         logger.info(f"Starting agent graph execution for session={session_id}, doc={document_id}")
         memory = Memory(
             db=db,
-            client=groq_client,
-            small_model=GROQ_SMALL_MODEL,
+            llm=groq_llm,
             agent_dir=AGENT_DIR
         )
 
@@ -111,7 +110,7 @@ class AgentGraph:
                 return
 
             if current_node == Node.THINK:
-                async for item in think_node(state, db, session_id, document_id):
+                async for item in think_node(state, groq_llm, session_id):
                     if isinstance(item, str):
                         yield item
                     elif isinstance(item, NodeTransition):
@@ -128,6 +127,7 @@ class AgentGraph:
 
         final_response = state.get("final_response")
         if final_response:
+            usage = state.get("last_turn_usage", None)
             await add_chat_message(
                 db=db,
                 session_id=session_id,
@@ -135,7 +135,7 @@ class AgentGraph:
                 role=MessageRole.ASSISTANT,
                 type=MessageType.MESSAGE,
                 content={"text": final_response},
-                token_count=state.get("last_turn_tokens", 0)
+                token_count=usage.total if usage is not None else 0
             )
 
         await memory.after_run(session_id=session_id)
