@@ -6,8 +6,10 @@ from groq import AsyncGroq
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.llm.base import LLMClient
 from app.services.agent.memory import prompts
 from app.models import ChatHistory, PerDocMemory
+from app.services.llm.llm_types import LLMPurpose
 from app.config import USER_PROFILE_FILE, SOUL_FILE, CONSOLIDATE_EVERY_N
 
 logger = logging.getLogger(__name__)
@@ -15,13 +17,12 @@ logger = logging.getLogger(__name__)
 
 
 class Memory:
-    def __init__(self, db: AsyncSession, client: AsyncGroq, small_model: str, agent_dir: Path): 
-        self.db = db
-        self.client = client
-        self.small_model = small_model
-        self.agent_dir = agent_dir
-        self.user_profile_path = self.agent_dir / USER_PROFILE_FILE
-        self.soul_path = self.agent_dir / SOUL_FILE
+    def __init__(self, db: AsyncSession, llm: LLMClient, agent_dir: Path): 
+        self.db                 = db
+        self.llm                = llm
+        self.agent_dir          = agent_dir
+        self.soul_path          = self.agent_dir / SOUL_FILE
+        self.user_profile_path  = self.agent_dir / USER_PROFILE_FILE
 
         self._build_local_mem()
 
@@ -121,12 +122,13 @@ class Memory:
     async def _llm_summarize(self, messages: list[dict[str, str]]) -> str:
         """Distill memory for document, user or session based on system prompt and conversation"""
         try:
-            response = await self.client.chat.completions.create(
-                model=self.small_model,
+            text = await self.llm.completion(
                 messages=messages,
+                purpose=LLMPurpose.MEMORY_SUMMARIZE,
                 max_tokens=1024
             )
-            return response.choices[0].message.content
+
+            return text
         except Exception as e:
             raise RuntimeError(f"Summarize failed: {e}")
 
@@ -211,16 +213,16 @@ class Memory:
         a session or a document based on current message.
         """
         try:
-            response = await self.client.chat.completions.create(
-                model=self.small_model,
-                messages=[{
-                    "role": "user",
-                    "content": prompts.RETRIEVAL_GATE_PROMPT.format(message=message)
-                }],
+            messages = [{
+                "role": "user",
+                "content": prompts.RETRIEVAL_GATE_PROMPT.format(message=message)
+            }]
+            text = await self.llm.completion(
+                messages=messages,
+                purpose=LLMPurpose.MEMORY_RETRIEVE,
                 max_tokens=600
             )
 
-            text = response.choices[0].message.content
             if "```" in text:
                 text = text[text.index("{"):text.rindex("}") + 1]
             data = json.loads(text)

@@ -4,15 +4,16 @@ import logging
 from dataclasses import replace, is_dataclass
 from typing import Any, AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.services.client import GROQ_MODEL, groq_client
-from app.services.agent.tools import TOOLS, execute_tool
+from app.services.llm.base import LLMClient
+from app.services.agent.tools import execute_tool
 from app.services.agent.memory.short_term import add_chat_message
+from app.services.llm.llm_types import LLMPurpose, TextDelta, ToolCall, Usage
 from app.schemas import (
+    Node, 
     MessageRole,
     MessageType, 
-    Node, 
-    NodeTransition, 
     ThoughtStep, 
+    NodeTransition, 
     ToolCallDetail
 )
 
@@ -41,9 +42,8 @@ def _update_state(state: Any, **updates) -> Any:
 
 async def think_node(
     state: Any, 
-    db: AsyncSession, 
+    llm: LLMClient,
     session_id: uuid.UUID, 
-    document_id: uuid.UUID | None
 ) -> AsyncGenerator[str | NodeTransition, None]:
     """Execute the LLM reasoning (think) turn in the agent workflow.
 
@@ -66,74 +66,48 @@ async def think_node(
     loop_count = _get_val(state, "loop_count", 0)
     logger.debug(f"[Session {session_id}] Entering think_node, turn={loop_count + 1}")
 
-    accumulated_tc: dict = {}
-    accumulated_content: str = ""
+    text, tool_calls, usage = "", [], None
+    async for ev in llm.stream(messages, LLMPurpose.AGENT):
+        if isinstance(ev, TextDelta):
+            text += ev.text
+            yield f"event: answer\ndata: {json.dumps({'text': ev.text})}\n\n"
+        elif isinstance(ev, ToolCall):
+            tool_calls.append(ev)
+        elif isinstance(ev, Usage):
+            usage = ev
+
+    if usage is None:
+        logger.warning(f"[Session {session_id}] Token usage statistics were None for turn {loop_count + 1}")
+
     role: str = "assistant"
-    calling_tools: bool = False
-    turn_tokens: int = 0
-    try:
-        response = await groq_client.chat.completions.create(
-            model=GROQ_MODEL,
-            messages=messages,
-            tools=TOOLS,
-            stream=True
-        )
-    except Exception as e:
-        logger.error(f"[Session {session_id}] LLM generation failed: {e}")
-        raise RuntimeError(f"Generate failed: {e}")
-
-    async for chunk in response:
-        delta = chunk.choices[0].delta
-
-        if getattr(chunk, "usage", None) is not None:
-            turn_tokens = chunk.usage.total_tokens
-
-        if getattr(delta, "content", None) is not None:
-            piece_content = delta.content
-            accumulated_content += piece_content
-
-            yield f"event: answer\ndata: {json.dumps({'text': piece_content})}\n\n"
-
-        if getattr(delta, "tool_calls", None) is not None:
-            calling_tools = True
-            for tc in delta.tool_calls:
-                index = tc.index
-
-                if index not in accumulated_tc:
-                    accumulated_tc[index] = {
-                        "id": tc.id,
-                        "name": tc.function.name,
-                        "arguments": ""
-                    }
-
-                if tc.function.arguments:
-                    accumulated_tc[index]["arguments"] += tc.function.arguments
 
     new_state = _update_state(
         state,
-        last_turn_tokens=turn_tokens,
+        last_turn_usage=usage,
         loop_count=loop_count + 1
     )
 
-    if not calling_tools:
+    if not tool_calls:
         logger.info(f"[Session {session_id}] think_node finished reasoning without calling tools.")
-        if not accumulated_content.strip():
-            accumulated_content = (
+        if not text.strip():
+            text = (
                 "I apologize, but I did not receive a suitable response from the model. "
                 "Could you please try asking the question again?"
             )
 
-            yield f"event: answer\ndata: {json.dumps({'text': accumulated_content})}\n\n"
+            yield f"event: answer\ndata: {json.dumps({'text': text})}\n\n"
 
         message = {
             "role": role,
-            "content": accumulated_content
+            "content": text
         }
 
         final_step = ThoughtStep(
             loop_index=_get_val(new_state, "loop_count", 1) - 1,
-            token=turn_tokens,
-            thought=accumulated_content,
+            prompt_tokens=usage.prompt_tokens if usage is not None else 0,
+            completion_tokens=usage.completion_tokens if usage is not None else 0,
+            token=usage.total if usage is not None else 0,
+            thought=text,
             tool_calls=[]
         )
 
@@ -142,7 +116,7 @@ async def think_node(
             new_state,
             messages=messages + [message],
             thought_steps=existing_steps + [final_step],
-            final_response=accumulated_content or "",
+            final_response=text or "",
             next_node=Node.END
         )
 
@@ -150,33 +124,21 @@ async def think_node(
         yield NodeTransition(state=final_state, next_node=Node.END)
         return
 
-    final_tool_calls = []
     tool_calls_payload = []
-    for idx, tc in accumulated_tc.items():
-        try:
-            parsed_args = json.loads(tc["arguments"]) if tc["arguments"] else {}
-        except json.JSONDecodeError:
-            parsed_args = {}
-
-        final_tool_calls.append({
-            "id": tc["id"],
-            "name": tc["name"],
-            "arguments": parsed_args
-        })
-
+    for tc in tool_calls:
         tool_calls_payload.append({
-            "id": tc["id"],
+            "id": tc.id,
             "type": "function",
             "function": {
-                "name": tc["name"],
-                "arguments": tc["arguments"]
+                "name": tc.name,
+                "arguments": tc.arguments
             }
         })
 
-    logger.info(f"[Session {session_id}] think_node selected {len(final_tool_calls)} tool call(s).")
+    logger.info(f"[Session {session_id}] think_node selected {len(tool_calls_payload)} tool call(s).")
     message = {
         "role": role,
-        "content": accumulated_content,
+        "content": text,
         "tool_calls": tool_calls_payload
     }
 
@@ -267,12 +229,14 @@ async def execute_node(
     thought_content = tc_messages.get("content") if isinstance(tc_messages, dict) else getattr(tc_messages, "content", "")
 
     loop_count = _get_val(state, "loop_count", 1)
-    last_turn_tokens = _get_val(state, "last_turn_tokens", 0)
+    last_turn_usage = _get_val(state, "last_turn_usage", None)
     existing_steps = _get_val(state, "thought_steps", []) or []
 
     new_thought_step = ThoughtStep(
         loop_index=loop_count - 1,
-        token=last_turn_tokens,
+        prompt_tokens=last_turn_usage.prompt_tokens if last_turn_usage is not None else 0,
+        completion_tokens=last_turn_usage.completion_tokens if last_turn_usage is not None else 0,
+        token=last_turn_usage.total if last_turn_usage is not None else 0,
         thought=thought_content,
         tool_calls=tool_calls_detail
     )

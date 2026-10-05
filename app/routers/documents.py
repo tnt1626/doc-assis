@@ -8,9 +8,9 @@ from app.services.rag.generator import generate
 from app.services.rag.embedder import embed_batch
 from app.models import Document, Chunk, FileStatus
 from app.services.rag.chunker import chunk_by_sentences
-from app.services.extractor import extract_document_content, extract_text_from_pdf
+from app.services.extractor import extract_document_content
 from app.database import get_db, SessionLocal, update_doc_status
-from app.services.client import OllamaConnectionError, OllamaModelNotFound
+from app.services.llm.clients import OllamaConnectionError, OllamaModelNotFound
 from app.schemas import DocumentUploadResponse, DocumentListItem, QueryRequest, QueryResponse
 
 CONTENT_TYPES = [

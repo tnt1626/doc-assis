@@ -42,13 +42,12 @@ async def test_get_session_messages_ordering_and_filtering():
 async def test_memory_init_and_local_mem(tmp_path: Path):
     """Test Memory initialization, agent_dir creation, and default prompt files."""
     db = AsyncMock()
-    client = MagicMock()
+    llm = MagicMock()
     agent_dir = tmp_path / ".agent"
 
     memory = Memory(
         db=db,
-        client=client,
-        small_model="test-model",
+        llm=llm,
         agent_dir=agent_dir
     )
 
@@ -62,13 +61,12 @@ async def test_memory_init_and_local_mem(tmp_path: Path):
 async def test_memory_before_run(tmp_path: Path):
     """Test Memory.before_run fetching user_profile and per_doc_memory."""
     db = AsyncMock()
-    client = MagicMock()
+    llm = MagicMock()
     agent_dir = tmp_path / ".agent"
 
     memory = Memory(
         db=db,
-        client=client,
-        small_model="test-model",
+        llm=llm,
         agent_dir=agent_dir
     )
 

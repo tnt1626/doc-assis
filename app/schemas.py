@@ -34,6 +34,8 @@ class ToolCallDetail(BaseModel):
 
 class ThoughtStep(BaseModel):
     loop_index: int
+    prompt_tokens: int
+    completion_tokens: int
     token: int
     thought: str | None = None
     tool_calls: list[ToolCallDetail] = []

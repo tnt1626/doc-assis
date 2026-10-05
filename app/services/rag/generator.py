@@ -2,9 +2,9 @@ import uuid
 import ollama
 from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from app.config import OLLAMA_MODEL
 from app.services.rag.retriever import retrieve_vec
-from app.services.client import (
-    GENERATE_MODEL_NAME,
+from app.services.llm.clients import (
     OllamaModelNotFound, 
     OllamaConnectionError,  
     ollama_client as client
@@ -61,7 +61,7 @@ Context:
 """
     try:
         response = await client.chat(
-            model=GENERATE_MODEL_NAME,
+            model=OLLAMA_MODEL,
             messages = [
                 {
                     "role": "system",

@@ -1,44 +1,37 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock
-from app.services.agent.tools import (
-    search_document,
-    list_documents,
-)
+from unittest.mock import AsyncMock, patch, MagicMock
+from app.services.agent.tools import execute_tool, TOOLS
+
+
+def test_tools_schema_definitions():
+    """Verify that TOOLS list contains valid OpenAI tool definitions."""
+    tool_names = [t["function"]["name"] for t in TOOLS]
+    assert "search_document" in tool_names
+    assert "list_documents" in tool_names
+    assert "get_full_document" in tool_names
+    assert "summarize_document" in tool_names
+
 
 @pytest.mark.asyncio
-async def test_search_document_with_invalid_uuid():
-    db = AsyncMock()
-    tool_input = {
-        "document_id": "1",
-        "query": "haha"
-    }
+@patch("app.services.agent.tools.mcp_server.call_tool")
+async def test_execute_tool_success(mock_call_tool):
+    """Test successful tool execution dispatching to mcp_server."""
+    mock_res = MagicMock()
+    mock_item = MagicMock()
+    mock_item.text = "Sample tool result content"
+    mock_res.content = [mock_item]
+    mock_call_tool.return_value = mock_res
 
-    result = await search_document(tool_input, db)
-    assert result == f"Error: '{tool_input['document_id']}' is not a valid UUID."
-    db.scalar.assert_not_called()
+    res = await execute_tool("search_document", {"query": "test"})
+    assert res == "Sample tool result content"
+    mock_call_tool.assert_called_once_with("search_document", {"query": "test"})
 
-@pytest.mark.asyncio
-async def test_search_document_with_doc_not_found():
-    db = AsyncMock()
-    db.scalar.return_value = None
-    tool_input = {
-        "document_id": "431be7c4-efe1-4a8a-b55d-942efab31da1",
-        "query": "haha"
-    }
-
-    result = await search_document(tool_input, db)
-    assert result == f"Error: Document with ID '{tool_input['document_id']}' not found."
 
 @pytest.mark.asyncio
-async def test_list_documents_with_no_doc():
-    db = AsyncMock()
-    scalars_result = MagicMock()
-    scalars_result.all.return_value = []
-    db.scalars.return_value = scalars_result
-    tool_input = {
+@patch("app.services.agent.tools.mcp_server.call_tool")
+async def test_execute_tool_error_handling(mock_call_tool):
+    """Test error handling when mcp_server raises an exception."""
+    mock_call_tool.side_effect = Exception("MCP Connection Failed")
 
-    }
-
-    result = await list_documents(tool_input, db)
-    assert result == "No documents have been uploaded to the system yet."
-
+    res = await execute_tool("list_documents", {})
+    assert "Error executing tool 'list_documents': MCP Connection Failed" in res
