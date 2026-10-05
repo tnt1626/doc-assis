@@ -4,7 +4,7 @@ import logging
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import ChatHistory
-from app.services.client import groq_llm
+from app.services.llm_factory import llm
 from app.config import AGENT_DIR, SOUL_FILE
 from app.services.agent.memory.long_term import Memory
 from app.services.agent.graph.state import AgentGraphState
@@ -51,7 +51,7 @@ class AgentGraph:
         logger.info(f"Starting agent graph execution for session={session_id}, doc={document_id}")
         memory = Memory(
             db=db,
-            llm=groq_llm,
+            llm=llm,
             agent_dir=AGENT_DIR
         )
 
@@ -106,7 +106,7 @@ class AgentGraph:
                 return
 
             if current_node == Node.THINK:
-                async for item in think_node(state, groq_llm, session_id):
+                async for item in think_node(state, llm, session_id):
                     if isinstance(item, str):
                         yield item
                     elif isinstance(item, NodeTransition):

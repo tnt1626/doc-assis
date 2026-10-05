@@ -4,22 +4,30 @@ from app.services.llm import llm_types
 
 logger = logging.getLogger(__name__)
 
-class GroqClient:
-    """LLM client implementation for Groq API adhering to LLMClient protocol."""
+class OpenAICompatClient:
+    """LLM client implementation for OpenAI-compatible APIs adhering to LLMClient protocol."""
 
-    def __init__(self, client, model, small_model, tools: list[dict]):
-        """Initialize GroqClient with Groq SDK client, model names, and tool schemas."""
-        self.client         = client
-        self.model          = model
-        self.small_model    = small_model
-        self.tools          = tools
+    def __init__(
+        self, 
+        client, 
+        model, 
+        small_model, 
+        tools: list[dict], 
+        provider_options: dict | None = None
+    ):
+        """Initialize OpenAICompatClient with OpenAI SDK client, model names, and tool schemas."""
+        self.client             = client
+        self.model              = model
+        self.small_model        = small_model
+        self.tools              = tools
+        self.provider_options   = provider_options or {}
 
     async def stream(
         self, 
         messages: list[dict[str, str]],
         purpose: llm_types.LLMPurpose
     ) -> AsyncIterator[llm_types.TextDelta | llm_types.ToolCall | llm_types.Usage]:
-        """Stream response events from Groq API asynchronously.
+        """Stream response events from OpenAI-compatible API asynchronously.
 
         Args:
             messages (list[dict[str, str]]): List of conversation message objects.
@@ -40,7 +48,8 @@ class GroqClient:
                 model=self.model,
                 messages=messages,
                 tools=self.tools,
-                stream=True
+                stream=True,
+                **self.provider_options,
             )
 
         except Exception as e:
@@ -56,7 +65,7 @@ class GroqClient:
                     completion_tokens=completion_tokens
                 )
 
-                logger.info(f"[TOKENS] purpose={purpose.value} prompt={prompt_tokens} completion={completion_tokens}")
+                logger.info(f"[TOKENS] purpose={purpose.value} model={self.model} prompt={prompt_tokens} completion={completion_tokens}")
 
             if not chunk.choices:
                 continue
@@ -119,10 +128,11 @@ class GroqClient:
         response = await self.client.chat.completions.create(
             model=self.small_model,
             messages=messages,
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
+            **self.provider_options,
         )
         if getattr(response, "usage", None) is not None:
-            logger.info(f"[TOKENS] purpose={purpose.value} prompt={response.usage.prompt_tokens} completion={response.usage.completion_tokens}")
+            logger.info(f"[TOKENS] purpose={purpose.value} model={self.small_model} prompt={response.usage.prompt_tokens} completion={response.usage.completion_tokens}")
         else:
             logger.warning(f"[TOKENS] purpose={purpose.value} Usage statistics were missing or None.")
 

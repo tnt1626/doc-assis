@@ -33,11 +33,13 @@ docker compose up -d db
 Create a `.env` file in the root directory:
 ```env
 DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/docqa
+LLM_PROVIDER=ollama # 'ollama' or 'groq'
+OLLAMA_MODEL=qwen2.5:7b
 OLLAMA_BASE_URL=http://localhost:11434
 GROQ_API_KEY=your_groq_api_key_here
 GROQ_MODEL=openai/gpt-oss-120b
+GROQ_SMALL_MODEL=qwen/qwen3.8-27b
 EMBED_MODEL_NAME=nomic-embed-text
-GENERATE_MODEL_NAME=qwen2.5:1.5b
 ```
 
 #### Step 3: Run the Application

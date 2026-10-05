@@ -20,9 +20,9 @@ logger = logging.getLogger(__name__)
 async def pull_ollama_models():
     try:
         logger.info(f"Connecting to Ollama at: {config.OLLAMA_URL}")
-        logger.info(f"Starting to pull Ollama models: {config.EMBED_MODEL_NAME}, {config.GENERATE_MODEL_NAME}")
+        logger.info(f"Starting to pull Ollama models: {config.EMBED_MODEL_NAME}, {config.OLLAMA_MODEL}")
         await ollama_client.pull(config.EMBED_MODEL_NAME)
-        await ollama_client.pull(config.GENERATE_MODEL_NAME)
+        await ollama_client.pull(config.OLLAMA_MODEL)
         logger.info("Successfully pulled Ollama models.")
     except Exception as e:
         logger.error(f"Failed to pull Ollama models (URL: {config.OLLAMA_URL}): {e}. Application will continue starting, but Ollama might be unavailable.")
