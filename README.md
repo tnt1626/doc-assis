@@ -30,17 +30,27 @@ docker compose up -d db
 ```
 
 #### Step 2: Environment Configuration
-Create a `.env` file in the root directory:
+Create a `.env` file in the root directory (refer to `.env.example`):
 ```env
 DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/docqa
-LLM_PROVIDER=ollama # 'ollama' or 'groq'
+
+# Choose LLM Provider: 'ollama' (default, local & private) or 'groq' (cloud, high speed)
+LLM_PROVIDER=ollama
+
+# Ollama settings (required when LLM_PROVIDER=ollama)
 OLLAMA_MODEL=qwen2.5:7b
 OLLAMA_BASE_URL=http://localhost:11434
-GROQ_API_KEY=your_groq_api_key_here
-GROQ_MODEL=openai/gpt-oss-120b
-GROQ_SMALL_MODEL=qwen/qwen3.8-27b
 EMBED_MODEL_NAME=nomic-embed-text
+
+# Groq settings (only required when LLM_PROVIDER=groq)
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_SMALL_MODEL=llama-3.1-8b-instant
 ```
+
+> **Ollama Setup & System Notes:**
+> - **Hardware Requirements:** Running `qwen2.5:7b` locally requires at least ~5GB VRAM.
+> - **Context Window:** Configure your Ollama model context length (recommended: `num_ctx = 8192`) on the Ollama server side via `Modelfile`.
 
 #### Step 3: Run the Application
 Install dependencies and start the backend server:
