@@ -129,7 +129,6 @@ class OpenAICompatClient:
             model=self.small_model,
             messages=messages,
             max_tokens=max_tokens,
-            **self.provider_options,
         )
         if getattr(response, "usage", None) is not None:
             logger.info(f"[TOKENS] purpose={purpose.value} model={self.small_model} prompt={response.usage.prompt_tokens} completion={response.usage.completion_tokens}")

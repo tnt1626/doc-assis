@@ -39,6 +39,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+logger.info(f"[MEMORY] Memory enabled: {config.MEMORY_ENABLED}")
 
 app.include_router(doc_router)
 app.include_router(agent_router)

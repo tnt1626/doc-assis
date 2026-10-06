@@ -23,3 +23,4 @@ OLLAMA_URL = os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434"
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 GROQ_SMALL_MODEL = os.getenv("GROQ_SMALL_MODEL", "qwen/qwen3.8-27b")
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
+MEMORY_ENABLED = os.getenv("MEMORY_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")

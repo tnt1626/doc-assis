@@ -89,7 +89,6 @@ class AgentGraph:
             "document_id"       : document_id,
             "messages"          : initial_messages,
             "loop_count"        : 0,
-            "last_turn_tokens"  : 0,
             "thought_steps"     : [],
             "final_response"    : None,
             "next_node"         : "think",

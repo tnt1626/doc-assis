@@ -9,7 +9,7 @@ class TextDelta:
 class ToolCall:
     id: str
     name: str
-    arguments: dict
+    arguments: str
 
 @dataclass
 class Usage:

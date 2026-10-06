@@ -10,7 +10,12 @@ from app.services.llm.base import LLMClient
 from app.services.agent.memory import prompts
 from app.models import ChatHistory, PerDocMemory
 from app.services.llm.llm_types import LLMPurpose
-from app.config import USER_PROFILE_FILE, SOUL_FILE, CONSOLIDATE_EVERY_N
+from app.config import (
+    SOUL_FILE, 
+    MEMORY_ENABLED,
+    USER_PROFILE_FILE, 
+    CONSOLIDATE_EVERY_N,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -281,6 +286,10 @@ class Memory:
 
     async def force_consolidation(self, session_id: uuid.UUID):
         """Consolidate a session before deleting"""
+        if not MEMORY_ENABLED:
+            logger.info(f"[MEMORY] Memory enabled (force_consolidation): {MEMORY_ENABLED}")
+            return
+
         doc_ids_used = await self._get_doc_ids_used(session_id)
 
         logger.info(f"[Session {session_id}] Memory force consolidation triggered")
@@ -305,6 +314,10 @@ class Memory:
         Returns:
             dict: Context dictionary containing 'user_profile' and/or 'doc_memory' strings.
         """
+        if not MEMORY_ENABLED:
+            logger.info(f"[MEMORY] Memory enabled (before_run): {MEMORY_ENABLED}")
+            return {}
+
         logger.debug(f"Retrieving memory context before run for message snippet: {message[:50]}...")
         retrieve_user, retrieve_doc = await self._should_retrieve(message)
 
@@ -319,6 +332,10 @@ class Memory:
 
 
     async def after_run(self, session_id: uuid.UUID):
+        if not MEMORY_ENABLED:
+            logger.info(f"[MEMORY] Memory enabled (after run): {MEMORY_ENABLED}")
+            return
+
         doc_ids_used = await self._get_doc_ids_used(session_id)
         try:
             should_consolidate = await self._should_consolidate(session_id)
@@ -331,6 +348,6 @@ class Memory:
                 logger.info(f"[Session {session_id}] Memory consolidation completed")
         except Exception as e:
             logger.warning(f"[Session {session_id}] Memory consolidation failed: {e}")
-    
+        
 
 

@@ -193,8 +193,11 @@ async def execute_node(
         func = tc["function"] if isinstance(tc, dict) else tc.function
         tool_name = func["name"] if isinstance(func, dict) else func.name
         args_str = func["arguments"] if isinstance(func, dict) else func.arguments
-        
-        tool_input = json.loads(args_str) if isinstance(args_str, str) else args_str
+
+        try:
+            tool_input = json.loads(args_str) if isinstance(args_str, str) else args_str
+        except json.JSONDecodeError:
+            tool_input = {}
 
         logger.info(f"[Session {session_id}] Executing tool '{tool_name}' with args: {tool_input}")
 

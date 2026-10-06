@@ -81,7 +81,6 @@ class AgentState():
     question: str
     messages: list[dict] = field(default_factory=list)
     thought_steps: list[ThoughtStep] = field(default_factory=list)
-    last_turn_tokens: int = 0
     loop_count: int = 0
     final_response: str | None = None
 
