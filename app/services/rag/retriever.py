@@ -1,7 +1,7 @@
 import uuid
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.config import THRESHOLD
+from app.config import THRESHOLD, CRAG_ENABLED
 from app.models import Chunk, Document
 from app.services.rag.embedder import embed_text
 
@@ -85,7 +85,8 @@ async def retrieve_hybrid(
         results.append((chunk, filename, dist))
 
     # Fallback to standard vector query if no hybrid matches meet distance threshold
-    if not results:
+    # Note: When CRAG is enabled, we avoid blindly injecting distant chunks into the generator.
+    if not results and not CRAG_ENABLED:
         fallback_query = (
             select(Chunk, Document.filename, distance_col)
             .join(Document, Document.id == Chunk.document_id)
