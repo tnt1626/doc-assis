@@ -24,3 +24,31 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 GROQ_SMALL_MODEL = os.getenv("GROQ_SMALL_MODEL", "qwen/qwen3.8-27b")
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
 MEMORY_ENABLED = os.getenv("MEMORY_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+
+# ==========================================
+# CRAG (Corrective RAG) Configuration
+# ==========================================
+CRAG_ENABLED: bool = os.getenv("CRAG_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+
+# Evaluator Settings (Strictly CPU-only)
+CRAG_EVALUATOR_MODEL: str = os.getenv("CRAG_EVALUATOR_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+CRAG_EVALUATOR_DEVICE: str = "cpu"  # Strictly CPU, no CUDA allocation
+CRAG_EVALUATOR_BATCH_SIZE: int = int(os.getenv("CRAG_EVALUATOR_BATCH_SIZE", "16"))
+CRAG_EVALUATOR_MAX_LENGTH: int = int(os.getenv("CRAG_EVALUATOR_MAX_LENGTH", "512"))
+
+# Thresholds (Configurable heuristic anchors)
+CRAG_THRESHOLD_LOWER: float = float(os.getenv("CRAG_THRESHOLD_LOWER", "0.35"))
+CRAG_THRESHOLD_UPPER: float = float(os.getenv("CRAG_THRESHOLD_UPPER", "0.70"))
+CRAG_STRIP_THRESHOLD: float = float(os.getenv("CRAG_STRIP_THRESHOLD", "0.40"))
+
+# Knowledge Refinement & Safety Settings
+CRAG_PRESERVE_NEIGHBORS: bool = os.getenv("CRAG_PRESERVE_NEIGHBORS", "false").strip().lower() in ("1", "true", "yes", "on")
+CRAG_MAX_REFINED_CHARS: int = int(os.getenv("CRAG_MAX_REFINED_CHARS", "3000"))
+
+# Retrieval Scope & External Fallback
+CRAG_RETRIEVAL_SCOPE: str = os.getenv("CRAG_RETRIEVAL_SCOPE", "DOCUMENT_ONLY")  # "DOCUMENT_ONLY" | "WEB_ALLOWED"
+CRAG_WEB_TIMEOUT: float = float(os.getenv("CRAG_WEB_TIMEOUT", "4.0"))
+CRAG_WEB_MAX_RESULTS: int = int(os.getenv("CRAG_WEB_MAX_RESULTS", "3"))
+
+# Telemetry
+CRAG_TELEMETRY_ENABLED: bool = os.getenv("CRAG_TELEMETRY_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
