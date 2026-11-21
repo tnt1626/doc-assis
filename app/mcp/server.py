@@ -3,10 +3,11 @@ from typing import Optional
 from sqlalchemy import select
 
 from mcp.server.mcpserver import MCPServer
-from app.config import PAGE_SIZE
+from app.config import PAGE_SIZE, CRAG_ENABLED
 from app.database import SessionLocal
 from app.models import Chunk, Document
 from app.services.rag.retriever import retrieve_vec
+from app.services.rag.crag_engine import crag_engine
 
 mcp_server = MCPServer(
     name="document-qa-server",
@@ -51,6 +52,18 @@ async def search_document(
         rows = await retrieve_vec(query, doc_uuid, top_k, db)
         if not rows:
             return "No relevant text chunks found for this query."
+
+        if CRAG_ENABLED:
+            crag_res = crag_engine.process(query, rows)
+            if not crag_res.has_evidence:
+                return "No relevant verified evidence found for this query in the specified document(s)."
+
+            header = f"Evaluated retrieval confidence: {crag_res.action.value}."
+            if doc_uuid and doc:
+                header += f" Refined evidence from '{doc.filename}':"
+            else:
+                header += " Refined evidence:"
+            return f"{header}\n\n{crag_res.context}"
 
         result_lines = []
         if doc_uuid and doc:

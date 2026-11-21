@@ -1,6 +1,7 @@
 import os
 import tempfile
 import logging
+import hashlib
 from pathlib import Path
 from docling.document_converter import DocumentConverter
 
@@ -38,10 +39,19 @@ def extract_document_content(content: bytes, filename: str) -> str:
 
     try:
         converter = get_converter()
+        logger.info(
+            "Extraction started: filename=%r bytes=%d sha256=%s extractor=%s",
+            filename, len(content), hashlib.sha256(content).hexdigest(), __file__,
+        )
         result = converter.convert(tmp_path)
         markdown_text = result.document.export_to_markdown()
 
         clean_text = markdown_text.strip()
+        logger.info(
+            "Extraction result: filename=%r status=%s input_pages=%s processed_pages=%d chars=%d errors=%s",
+            filename, result.status, result.input.page_count,
+            len(result.pages), len(clean_text), result.errors,
+        )
         if not clean_text:
             raise ValueError("Document content is empty or text cannot be extracted.")
 

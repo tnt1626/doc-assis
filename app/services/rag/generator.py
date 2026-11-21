@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from app.config import OLLAMA_MODEL
 from app.services.rag.retriever import retrieve_vec
+from app.services.rag.crag_engine import crag_engine
 from app.services.llm.clients import (
     OllamaModelNotFound, 
     OllamaConnectionError,  
@@ -39,25 +40,21 @@ async def generate(
         dict: Response containing 'answer' string, total 'token' count, and 'sources' list.
     """
     rows = await retrieve_vec(question, document_id, top_k, db)
-    if not rows:
+    crag_res = crag_engine.process(question, rows)
+
+    if not crag_res.has_evidence:
         return {
             "answer": "I don't know based on the provided document.",
             "token": 0,
             "sources": []
         }
 
-    context = ""
-    for row in rows:
-        chunk = row[0] # chunk
-        distance = row[2] # distance
-        context += f"Content: {chunk.content}. Distance: {distance}\n"
-
     system_prompt = f"""You are a helpful assistant. Answer the question based ONLY on the context below.
 Do not use any knowledge outside of the provided context.
 If the answer cannot be found in the context, respond exactly with: "I don't know based on the provided document."
 
 Context:
-{context}
+{crag_res.context}
 """
     try:
         response = await client.chat(
@@ -77,7 +74,7 @@ Context:
         return {
             "answer": response.message.content,
             "token": response.prompt_eval_count + response.eval_count,
-            "sources": [row[0].content for row in rows]
+            "sources": crag_res.sources
         }
     except ollama.RequestError:
         raise OllamaConnectionError()
